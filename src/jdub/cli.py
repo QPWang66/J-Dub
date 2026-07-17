@@ -28,6 +28,14 @@ def parse(json_path: Path) -> None:
 
 
 @app.command()
+def pbp(game_id: str) -> None:
+    """Fetch official play-by-play text for a parsed game (spot-check ground truth)."""
+    from jdub.data import download_pbp
+
+    typer.echo(f"wrote {download_pbp(game_id)} pbp rows")
+
+
+@app.command()
 def detect(game_id: str) -> None:
     """Run M2 detection (matchups + atomic actions) for a parsed game."""
     from jdub.events import detect_to_parquet

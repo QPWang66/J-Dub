@@ -17,6 +17,7 @@
   #layers label { margin-right: 10px; font-size: 13px; user-select: none; }
   .legend { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; }
   #chips button.active { color: #111; font-weight: 600; }
+  #pbp { color: #f6ae2d; font-size: 14px; margin: 2px 0 8px; min-height: 18px; }
   #roster { font-size: 13px; margin-top: 8px; line-height: 1.7; }
   #roster b { margin-right: 6px; }
   #roster span.p { margin-right: 12px; white-space: nowrap; }
@@ -35,6 +36,7 @@
 </div>
 <div id="bar"><span id="layers"></span><span id="legend"></span></div>
 <div id="bar"><span id="chips"></span></div>
+<div id="pbp"></div>
 <canvas id="court" width="1000" height="560"></canvas>
 <div id="roster"></div>
 
@@ -272,6 +274,8 @@ async function loadEvent() {
   S.actions = S.data.actions;
   S.names = S.data.players;
   S.frame = 0; setPlaying(false); S.rosterKey = '';
+  const meta = S.eventsMeta?.get(e);
+  $('pbp').textContent = meta?.desc ? `PBP: ${meta.desc}` : 'PBP: (无记录——非记录事件回合)';
   const total = S.data.frames.length;
   for (const act of S.actions) {  // frame-array positions for animation + ticks
     act._startPos = Math.max(0, S.data.frames.findIndex(f => f.idx >= act.start_idx));
@@ -308,9 +312,11 @@ async function loadEvent() {
 async function loadEvents() {
   const g = $('game').value;
   const evs = await (await fetch(`/api/games/${g}/events`)).json();
+  S.eventsMeta = new Map(evs.map(e => [String(e.event_id), e]));
   $('event').innerHTML = evs.map(e => {
     const c = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
-    return `<option value="${e.event_id}">#${e.event_id} Q${e.quarter} ${c(e.start_clock)}→${c(e.end_clock)} (${e.n_moments}f)</option>`;
+    const d = e.desc ? ` — ${e.desc.slice(0, 60)}` : '';
+    return `<option value="${e.event_id}">#${e.event_id} Q${e.quarter} ${c(e.start_clock)}→${c(e.end_clock)}${d}</option>`;
   }).join('');
   await loadEvent();
 }

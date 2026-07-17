@@ -30,17 +30,19 @@ def events(game_id: str) -> list[dict]:
         m = load_moments(game_id)
     except FileNotFoundError:
         raise HTTPException(404, f"game {game_id} not parsed") from None
-    return (
-        m.group_by("event_id", maintain_order=True)
-        .agg(
-            pl.col("quarter").first(),
-            pl.col("game_clock").max().alias("start_clock"),
-            pl.col("game_clock").min().alias("end_clock"),
-            pl.col("moment_idx").n_unique().alias("n_moments"),
-        )
-        .sort("event_id")
-        .to_dicts()
+    ev = m.group_by("event_id", maintain_order=True).agg(
+        pl.col("quarter").first(),
+        pl.col("game_clock").max().alias("start_clock"),
+        pl.col("game_clock").min().alias("end_clock"),
+        pl.col("moment_idx").n_unique().alias("n_moments"),
     )
+    pbp_path = PARQUET_DIR / "pbp" / f"{game_id}.parquet"
+    if pbp_path.exists():
+        pbp = pl.read_parquet(pbp_path).select("event_id", "desc")
+        ev = ev.join(pbp, on="event_id", how="left")
+    else:
+        ev = ev.with_columns(pl.lit(None, dtype=pl.String).alias("desc"))
+    return ev.sort("event_id").to_dicts()
 
 
 @app.get("/api/games/{game_id}/events/{event_id}")

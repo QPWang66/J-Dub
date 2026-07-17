@@ -21,6 +21,7 @@ MIRROR = (
     "https://raw.githubusercontent.com/linouk23/NBA-Player-Movements"
     "/master/data/2016.NBA.Raw.SportVU.Game.Logs"
 )
+PBP_MIRROR = "https://raw.githubusercontent.com/sealneaward/nba-movement-data/master/data/events"
 COURT_LENGTH = 94.0
 COURT_WIDTH = 50.0
 
@@ -186,6 +187,41 @@ def parse_to_parquet(json_path: Path | str, out_dir: Path = PARQUET_DIR) -> dict
         d.mkdir(parents=True, exist_ok=True)
         df.write_parquet(d / f"{game_id}.parquet")
     return {"moments": len(moments), "games": len(games), "players": len(players)}
+
+
+def download_pbp(game_id: str, out_dir: Path = PARQUET_DIR) -> int:
+    """Fetch official play-by-play for a game (EVENTNUM aligns with SportVU event_id).
+
+    Ground truth for eyeballing detections: each event's text description of
+    what actually happened. Writes data/parquet/pbp/<game_id>.parquet.
+    """
+    import io
+
+    resp = requests.get(f"{PBP_MIRROR}/{game_id}.csv", timeout=120)
+    resp.raise_for_status()
+    df = (
+        pl.read_csv(io.BytesIO(resp.content), infer_schema_length=None)
+        .select(
+            pl.col("EVENTNUM").cast(pl.Int32).alias("event_id"),
+            pl.col("PERIOD").cast(pl.Int8).alias("quarter"),
+            pl.col("PCTIMESTRING").alias("clock"),
+            pl.concat_str(
+                [
+                    pl.col("HOMEDESCRIPTION").fill_null(""),
+                    pl.col("NEUTRALDESCRIPTION").fill_null(""),
+                    pl.col("VISITORDESCRIPTION").fill_null(""),
+                ],
+                separator=" ",
+            )
+            .str.strip_chars()
+            .alias("desc"),
+        )
+        .filter(pl.col("desc") != "")
+    )
+    d = out_dir / "pbp"
+    d.mkdir(parents=True, exist_ok=True)
+    df.write_parquet(d / f"{game_id}.parquet")
+    return len(df)
 
 
 def load_moments(game_id: str, parquet_dir: Path = PARQUET_DIR) -> pl.DataFrame:
