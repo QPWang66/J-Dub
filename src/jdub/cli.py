@@ -45,6 +45,16 @@ def detect(game_id: str) -> None:
 
 
 @app.command()
+def commentary(game_id: str, event_id: int, llm: bool = False) -> None:
+    """Generate grounded Chinese commentary for one possession (M4)."""
+    from jdub.commentary import generate
+
+    result = generate(game_id, event_id, llm=llm)
+    for s in result["sentences"]:
+        typer.echo(f"[{s['start_idx']:>4}] {s['text']}")
+
+
+@app.command()
 def studio(port: int = 8000) -> None:
     """Run the jdub studio web viewer."""
     from jdub.studio import run

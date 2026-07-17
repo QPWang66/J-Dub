@@ -91,6 +91,13 @@
   .empty .h { color: var(--ink); font-size: 13.5px; margin-bottom: 3px; }
   .empty .s { font-size: 12px; }
 
+  /* -- commentary subtitles (M4): sentence <-> court two-way highlight -- */
+  #commentary { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; }
+  .sent { font-size: 15.5px; color: var(--ink-2); padding: 4px 10px; border-left: 2px solid transparent;
+          cursor: pointer; line-height: 1.65; }
+  .sent:hover { color: var(--ink); }
+  .sent.live { color: var(--ink); border-left-color: var(--accent); }
+
   /* -- under-court pbp -- */
   #pbp { font-size: 15px; margin-top: 10px; }
   #pbp b { color: var(--ink-2); font-weight: 600; font-size: 11px; letter-spacing: .14em; margin-right: 8px; }
@@ -146,6 +153,7 @@
       <span id="ptime"></span>
     </div>
     <div id="pbp"></div>
+    <div id="commentary"></div>
   </section>
 
   <aside id="right">
@@ -387,6 +395,12 @@ function render() {
       c.el.classList.toggle('live', live);
       if (live) c.el.scrollIntoView({ block: 'nearest' });
     }
+    for (const s of S.sentEls || []) {
+      const live = f.idx >= s.start && f.idx < s.end;
+      if (live === s.wasLive) continue;
+      s.wasLive = live;
+      s.el.classList.toggle('live', live);
+    }
     updateRoster(f);
   }
 }
@@ -539,6 +553,30 @@ async function selectEvent(eventId) {
   }
   $('scrub').max = total - 1;
   renderCalls();
+  loadCommentary(g, eventId);
+}
+
+// M4 subtitles: each sentence anchors to a fact's start frame; the sentence
+// whose window contains the playhead lights up, clicking a sentence seeks.
+async function loadCommentary(g, eventId) {
+  $('commentary').innerHTML = '';
+  S.sentEls = [];
+  const c = await (await fetch(`/api/games/${g}/events/${eventId}/commentary`)).json();
+  if (S.currentId !== eventId) return;  // stale response
+  const sents = c.sentences ?? [];
+  for (let k = 0; k < sents.length; k++) {
+    const s = sents[k];
+    const div = document.createElement('div');
+    div.className = 'sent';
+    div.textContent = s.text;
+    const pos = Math.max(0, S.data.frames.findIndex(f => f.idx >= s.start_idx));
+    div.onclick = () => { setPlaying(false); S.frame = pos; };
+    $('commentary').append(div);
+    S.sentEls.push({ el: div, start: s.start_idx, wasLive: false });
+  }
+  for (let k = 0; k < S.sentEls.length; k++) {
+    S.sentEls[k].end = k + 1 < S.sentEls.length ? S.sentEls[k + 1].start : Infinity;
+  }
 }
 
 const MIN_FRAMES = 75;  // hide <3s fragments (FTs, subs, replay reviews)
