@@ -1,0 +1,49 @@
+{
+  "video": "test.mp4 (fixed camera), gym court assumed 74x50 ft, near-left basket mapped to x=94",
+  "convention": "court ft: x=94 near-left baseline, y=0 near (bottom) sideline; halfcourt at x=57",
+  "image": [
+    [
+      255,
+      455
+    ],
+    [
+      618,
+      410
+    ],
+    [
+      700,
+      517
+    ],
+    [
+      950,
+      480
+    ],
+    [
+      768,
+      388
+    ]
+  ],
+  "court": [
+    [
+      94,
+      50
+    ],
+    [
+      57,
+      50
+    ],
+    [
+      57,
+      0
+    ],
+    [
+      20,
+      0
+    ],
+    [
+      20,
+      50
+    ]
+  ],
+  "static": true
+}

@@ -1,0 +1,24 @@
+[project]
+name = "jdub-cv"
+version = "0.1.0"
+description = "jdub stage 1: broadcast video -> moments-schema trajectories"
+requires-python = ">=3.12"
+dependencies = [
+    "ultralytics>=8.3.0",
+    "opencv-python>=4.10.0",
+    "polars>=1.42.1",
+    "numpy>=1.26.0",
+    "lap>=0.5.13",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.29,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 100
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
