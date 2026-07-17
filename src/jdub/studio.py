@@ -67,13 +67,14 @@ def _detection(game_id: str, table: str, event_id: int) -> list[dict]:
     return pl.read_parquet(path).filter(pl.col("event_id") == event_id).to_dicts()
 
 
-def _rosters(game_id: str) -> dict[str, str]:
+def _rosters(game_id: str) -> dict[str, dict]:
     path = PARQUET_DIR / "players" / f"{game_id}.parquet"
     if not path.exists():
         return {}
     df = pl.read_parquet(path)
     return {
-        str(r["player_id"]): f"{r['lastname']} #{r['jersey']}" for r in df.iter_rows(named=True)
+        str(r["player_id"]): {"name": r["lastname"], "jersey": r["jersey"]}
+        for r in df.iter_rows(named=True)
     }
 
 

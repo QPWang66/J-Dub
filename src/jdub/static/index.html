@@ -8,11 +8,18 @@
   #bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
   select, button { background: #262b33; color: #ddd; border: 1px solid #444; border-radius: 4px; padding: 4px 10px; font-size: 14px; }
   button { cursor: pointer; }
-  #scrub { flex: 1; min-width: 200px; }
+  #scrubwrap { flex: 1; min-width: 200px; }
+  #scrub { width: 100%; margin: 0; }
+  #ticks { position: relative; height: 7px; }
+  .tick { position: absolute; width: 4px; height: 7px; border-radius: 1px; cursor: pointer; }
   canvas { background: #1e232b; border-radius: 6px; display: block; }
   #clock { font-variant-numeric: tabular-nums; min-width: 130px; }
   #layers label { margin-right: 10px; font-size: 13px; user-select: none; }
   .legend { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; }
+  #chips button.active { color: #111; font-weight: 600; }
+  #roster { font-size: 13px; margin-top: 8px; line-height: 1.7; }
+  #roster b { margin-right: 6px; }
+  #roster span.p { margin-right: 12px; white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -20,12 +27,16 @@
   <select id="game"></select>
   <select id="event"></select>
   <button id="play">▶</button>
-  <input type="range" id="scrub" min="0" max="0" value="0">
+  <div id="scrubwrap">
+    <input type="range" id="scrub" min="0" max="0" value="0">
+    <div id="ticks"></div>
+  </div>
   <span id="clock"></span>
 </div>
 <div id="bar"><span id="layers"></span><span id="legend"></span></div>
 <div id="bar"><span id="chips"></span></div>
 <canvas id="court" width="1000" height="560"></canvas>
+<div id="roster"></div>
 
 <script>
 // ---- geometry: court is 94x50 ft, origin top-left corner, SCALE px per ft ----
@@ -105,12 +116,16 @@ function computePos() {
 function drawPlayers(ctx, S) {
   if (!S.pos) return;
   const home = S.data.game.home_team_id;
-  for (const { x, y, team } of S.pos.values()) {
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = 'bold 10px system-ui';
+  for (const [pid, { x, y, team }] of S.pos.entries()) {
     ctx.beginPath();
     ctx.arc(ftx(x), fty(y), 0.9 * SCALE, 0, 2 * Math.PI);
     ctx.fillStyle = team === home ? S.homeColor : S.visitorColor;
     ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(S.names[pid]?.jersey ?? '', ftx(x), fty(y) + 0.5);
   }
+  ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
 }
 
 function drawMatchups(ctx, S) {
@@ -127,17 +142,29 @@ function drawMatchups(ctx, S) {
 
 const ACTION_COLORS = { screen: '#9b5de5', drive: '#00bbf9', cut: '#00f5a0', handoff: '#f15bb5' };
 
+const whoShort = pid => S.names[pid] ? `${S.names[pid].name} #${S.names[pid].jersey}` : pid;
+
 function drawActions(ctx, S) {
   const f = cur(); if (!f || !S.pos) return;
+  const POP = 10; // frames of pop-in animation
   for (const act of S.actions) {
     if (f.idx < act.start_idx || f.idx > act.end_idx) continue;
     const p = S.pos.get(act.p1); if (!p) continue;
     const color = ACTION_COLORS[act.type] || '#ffffff';
+    // ease-out pop: ring shrinks from 2.6x onto the player, label fades in
+    const t = Math.min(1, (Math.floor(S.frame) - act._startPos) / POP);
+    const ease = 1 - (1 - t) ** 3;
+    ctx.globalAlpha = 0.25 + 0.75 * ease;
     ctx.strokeStyle = color; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.arc(ftx(p.x), fty(p.y), 1.5 * SCALE, 0, 2 * Math.PI); ctx.stroke();
-    ctx.fillStyle = color; ctx.font = '12px system-ui';
-    const name = S.names[act.p1] || act.p1;
-    ctx.fillText(`${act.type} · ${name} (${act.confidence})`, ftx(p.x) + 17, fty(p.y) - 14);
+    ctx.beginPath();
+    ctx.arc(ftx(p.x), fty(p.y), (1.5 + 1.6 * (1 - ease)) * SCALE, 0, 2 * Math.PI);
+    ctx.stroke();
+    ctx.fillStyle = color; ctx.font = 'bold 13px system-ui';
+    ctx.fillText(
+      `${act.type} · ${whoShort(act.p1)} (${act.confidence})`,
+      ftx(p.x) + 18, fty(p.y) - 16 - 6 * (1 - ease)
+    );
+    ctx.globalAlpha = 1;
   }
 }
 
@@ -174,7 +201,30 @@ function render() {
     document.getElementById('clock').textContent =
       `Q${f.quarter} ${mm}:${ss}` + (f.shot_clock != null ? ` · sc ${f.shot_clock.toFixed(1)}` : '');
     document.getElementById('scrub').value = Math.floor(S.frame);
+    for (const c of S.chipEls || []) {  // light chips up while their action is live
+      const active = f.idx >= c.act.start_idx && f.idx <= c.act.end_idx;
+      if (active === c.wasActive) continue;
+      c.wasActive = active;
+      c.el.classList.toggle('active', active);
+      c.el.style.background = active ? c.color : '';
+    }
+    updateRoster(f);
   }
+}
+
+function updateRoster(f) {
+  const key = f.players.map(p => p[1]).join(',');
+  if (key === S.rosterKey || !S.names) return;
+  S.rosterKey = key;
+  const home = S.data.game.home_team_id;
+  const side = teamHome => f.players
+    .filter(p => (p[0] === home) === teamHome)
+    .map(p => S.names[p[1]] ? { j: +S.names[p[1]].jersey, n: S.names[p[1]].name } : { j: p[1], n: '?' })
+    .sort((a, b) => a.j - b.j)
+    .map(({ j, n }) => `<span class="p">#${j} ${n}</span>`).join('');
+  $('roster').innerHTML =
+    `<b style="color:${S.homeColor}">${S.data.game.home_abbr}</b>${side(true)}<br>` +
+    `<b style="color:${S.visitorColor}">${S.data.game.visitor_abbr}</b>${side(false)}`;
 }
 
 function tick(t) {
@@ -221,22 +271,34 @@ async function loadEvent() {
   }
   S.actions = S.data.actions;
   S.names = S.data.players;
-  S.frame = 0; setPlaying(false);
-  const chips = $('chips');
-  chips.innerHTML = '';
-  for (const act of S.actions) {
-    const b = document.createElement('button');
-    const who = p => (S.names[p] || p);
-    b.textContent = `${act.type} ${who(act.p1)}${act.p2 != null ? '→' + who(act.p2) : ''} (${act.confidence})`;
-    b.style.borderColor = ACTION_COLORS[act.type] || '#444';
-    b.style.marginRight = '6px';
-    b.onclick = () => {
-      setPlaying(false);
-      S.frame = Math.max(0, S.data.frames.findIndex(f => f.idx >= act.start_idx));
-    };
-    chips.append(b);
+  S.frame = 0; setPlaying(false); S.rosterKey = '';
+  const total = S.data.frames.length;
+  for (const act of S.actions) {  // frame-array positions for animation + ticks
+    act._startPos = Math.max(0, S.data.frames.findIndex(f => f.idx >= act.start_idx));
+    act._endPos = Math.max(act._startPos, S.data.frames.findIndex(f => f.idx >= act.end_idx));
   }
-  $('scrub').max = S.data.frames.length - 1;
+  const chips = $('chips'), ticks = $('ticks');
+  chips.innerHTML = ''; ticks.innerHTML = '';
+  S.chipEls = [];
+  for (const act of S.actions) {
+    const color = ACTION_COLORS[act.type] || '#444';
+    const seek = () => { setPlaying(false); S.frame = act._startPos; };
+    const b = document.createElement('button');
+    b.textContent = `${act.type} ${whoShort(act.p1)}${act.p2 != null ? ' → ' + whoShort(act.p2) : ''} (${act.confidence})`;
+    b.style.borderColor = color;
+    b.style.marginRight = '6px';
+    b.onclick = seek;
+    chips.append(b);
+    S.chipEls.push({ el: b, act, color, wasActive: false });
+    const tk = document.createElement('div');
+    tk.className = 'tick';
+    tk.style.background = color;
+    tk.style.left = `${(100 * act._startPos / Math.max(1, total - 1)).toFixed(2)}%`;
+    tk.title = b.textContent;
+    tk.onclick = seek;
+    ticks.append(tk);
+  }
+  $('scrub').max = total - 1;
   const gm = S.data.game;
   $('legend').innerHTML =
     `<span class="legend" style="background:${S.homeColor}"></span>${gm.home_abbr} ` +
