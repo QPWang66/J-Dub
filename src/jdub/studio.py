@@ -75,6 +75,7 @@ def event(game_id: str, event_id: int) -> dict:
         "frames": frames,
         "matchups": _detection(game_id, "matchups", event_id),
         "actions": _detection(game_id, "actions", event_id),
+        "coverages": _detection(game_id, "coverages", event_id),
         "players": _rosters(game_id),
     }
 

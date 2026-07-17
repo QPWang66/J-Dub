@@ -363,11 +363,103 @@ def detect_actions(
     return actions
 
 
-def detect_game(game_id: str, parquet_dir: Path = PARQUET_DIR) -> tuple[pl.DataFrame, pl.DataFrame]:
-    """Run M2 detection over every event of a game. Returns (matchups_df, actions_df)."""
+# ---- M3: pick-and-roll coverage classification --------------------------------
+# Anchored on the "screen moment" (frame of minimum screener/on-ball-defender
+# distance; McIntyre et al., SSAC 2016, verified) and classified over the
+# following ~1.5 s from matchup swaps + geometry. Classes: switch / blitz /
+# drop / over / under. McIntyre's supervised baseline is 0.69 accuracy — treat
+# these rules as candidates for the studio eyeball loop.
+COV_POST = 38  # frames (~1.5s) after the screen moment
+COV_SWAP_FRAC = 0.6  # matchup swap fraction => switch
+COV_TRAP_DIST = 6.0  # both defenders this close to the handler => blitz
+COV_TRAP_FRAMES = 10  # ~0.4s
+COV_DROP_HOOP = 15.0  # ft: screener's defender parked this close to the hoop
+COV_TIGHT = 6.0  # ft: on-ball defender still attached => fought over
+
+
+def classify_coverage(
+    frames: list[tuple],
+    match: list[dict[int, int] | None],
+    screen: dict,
+    hoop: tuple[float, float],
+) -> dict | None:
+    """Classify the defense's response to one detected screen. None if actors unknown."""
+    n = len(frames)
+    a, b = screen["start"], screen["end"]
+    s_pid, h_pid = screen["p1"], screen["p2"]
+    pairing = match[a]
+    if pairing is None:
+        return None
+    d1, d2 = pairing.get(h_pid), pairing.get(s_pid)
+    if d1 is None or d2 is None or d1 == d2:
+        return None
+
+    def dist(i: int, p: int, q: int) -> float | None:
+        pos = frames[i][3]
+        if p not in pos or q not in pos:
+            return None
+        return math.hypot(pos[p][0] - pos[q][0], pos[p][1] - pos[q][1])
+
+    def dhoop(i: int, p: int) -> float | None:
+        pos = frames[i][3]
+        if p not in pos:
+            return None
+        return math.hypot(pos[p][0] - hoop[0], pos[p][1] - hoop[1])
+
+    # screen moment: screener closest to the on-ball defender
+    cands = [(dist(i, s_pid, d1), i) for i in range(a, b + 1)]
+    cands = [(d, i) for d, i in cands if d is not None]
+    if not cands:
+        return None
+    _, t_star = min(cands)
+    post = range(min(t_star + 3, n - 1), min(t_star + COV_POST, n))
+    if len(post) < 10:
+        return None
+
+    swap = denom = trap = tight = deep = 0
+    for i in post:
+        if match[i] is not None:
+            denom += 1
+            if match[i].get(h_pid) == d2 and match[i].get(s_pid) == d1:
+                swap += 1
+        dd1, dd2 = dist(i, d1, h_pid), dist(i, d2, h_pid)
+        if dd1 is not None and dd2 is not None and dd1 <= COV_TRAP_DIST and dd2 <= COV_TRAP_DIST:
+            trap += 1
+        if dd1 is not None and dd1 <= COV_TIGHT:
+            tight += 1
+        dh = dhoop(i, d2)
+        if dh is not None and dh <= COV_DROP_HOOP:
+            deep += 1
+
+    m = len(post)
+    if denom > 0 and swap / denom >= COV_SWAP_FRAC:
+        cov, conf = "switch", swap / denom
+    elif trap >= COV_TRAP_FRAMES:
+        cov, conf = "blitz", min(1.0, trap / (COV_TRAP_FRAMES * 1.5))
+    elif deep / m >= 0.6:
+        cov, conf = "drop", deep / m
+    elif tight / m >= 0.5:
+        cov, conf = "over", tight / m
+    else:
+        cov, conf = "under", 1.0 - tight / m
+    return {
+        "coverage": cov,
+        "t_star": t_star,
+        "end": post[-1],
+        "d1": d1,
+        "d2": d2,
+        "confidence": round(min(1.0, conf), 2),
+    }
+
+
+def detect_game(
+    game_id: str, parquet_dir: Path = PARQUET_DIR
+) -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFrame]:
+    """Run M2+M3 detection over every event. Returns (matchups_df, actions_df, coverages_df)."""
     m = load_moments(game_id, parquet_dir)
     match_rows: list[dict] = []
     action_rows: list[dict] = []
+    coverage_rows: list[dict] = []
     for event_id in m["event_id"].unique().sort().to_list():
         frames, team_of, quarter = complete_frames(m, event_id)
         if len(frames) < WINDOW:
@@ -375,6 +467,7 @@ def detect_game(game_id: str, parquet_dir: Path = PARQUET_DIR) -> tuple[pl.DataF
         hold = holders(frames)
         off = offense(hold, team_of)
         match = matchups(frames, off, team_of)
+        hoop = attacked_hoop(frames)
         for i, pairing in enumerate(match):
             if pairing is None:
                 continue
@@ -405,6 +498,26 @@ def detect_game(game_id: str, parquet_dir: Path = PARQUET_DIR) -> tuple[pl.DataF
                     "confidence": act["confidence"],
                 }
             )
+            if act["type"] == "screen":
+                cov = classify_coverage(frames, match, act, hoop)
+                if cov is not None:
+                    coverage_rows.append(
+                        {
+                            "game_id": game_id,
+                            "event_id": event_id,
+                            "quarter": quarter,
+                            "coverage": cov["coverage"],
+                            "screen_start_idx": frames[act["start"]][0],
+                            "start_idx": frames[cov["t_star"]][0],
+                            "end_idx": frames[cov["end"]][0],
+                            "gc_start": frames[cov["t_star"]][1],
+                            "handler": act["p2"],
+                            "screener": act["p1"],
+                            "d1": cov["d1"],
+                            "d2": cov["d2"],
+                            "confidence": cov["confidence"],
+                        }
+                    )
     matchups_df = pl.DataFrame(
         match_rows,
         schema={
@@ -431,13 +544,39 @@ def detect_game(game_id: str, parquet_dir: Path = PARQUET_DIR) -> tuple[pl.DataF
             "confidence": pl.Float64,
         },
     )
-    return matchups_df, actions_df
+    coverages_df = pl.DataFrame(
+        coverage_rows,
+        schema={
+            "game_id": pl.String,
+            "event_id": pl.Int32,
+            "quarter": pl.Int8,
+            "coverage": pl.String,
+            "screen_start_idx": pl.Int32,
+            "start_idx": pl.Int32,
+            "end_idx": pl.Int32,
+            "gc_start": pl.Float64,
+            "handler": pl.Int64,
+            "screener": pl.Int64,
+            "d1": pl.Int64,
+            "d2": pl.Int64,
+            "confidence": pl.Float64,
+        },
+    )
+    return matchups_df, actions_df, coverages_df
 
 
 def detect_to_parquet(game_id: str, parquet_dir: Path = PARQUET_DIR) -> dict[str, int]:
-    matchups_df, actions_df = detect_game(game_id, parquet_dir)
-    for name, df in (("matchups", matchups_df), ("actions", actions_df)):
+    matchups_df, actions_df, coverages_df = detect_game(game_id, parquet_dir)
+    for name, df in (
+        ("matchups", matchups_df),
+        ("actions", actions_df),
+        ("coverages", coverages_df),
+    ):
         d = parquet_dir / name
         d.mkdir(parents=True, exist_ok=True)
         df.write_parquet(d / f"{game_id}.parquet")
-    return {"matchups": len(matchups_df), "actions": len(actions_df)}
+    return {
+        "matchups": len(matchups_df),
+        "actions": len(actions_df),
+        "coverages": len(coverages_df),
+    }

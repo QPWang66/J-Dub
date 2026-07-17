@@ -508,7 +508,13 @@ async function selectEvent(eventId) {
     if (!S.matchupsByIdx.has(r.moment_idx)) S.matchupsByIdx.set(r.moment_idx, []);
     S.matchupsByIdx.get(r.moment_idx).push([r.off_player_id, r.def_player_id]);
   }
-  S.actions = S.data.actions;
+  // M3 coverages join the calls stream as first-class entries anchored on the
+  // defender executing the coverage (d2), with the on-ball defender as p2.
+  const covs = (S.data.coverages ?? []).map(c => ({
+    type: c.coverage, start_idx: c.start_idx, end_idx: c.end_idx,
+    p1: c.d2, p2: c.d1, confidence: c.confidence, gc_start: c.gc_start,
+  }));
+  S.actions = [...S.data.actions, ...covs];
   S.names = S.data.players;
   S.frame = 0; setPlaying(false); S.rosterKey = '';
   const meta = S.events.find(e => e.event_id === eventId);

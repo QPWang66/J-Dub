@@ -1,6 +1,6 @@
-"""Synthetic-trajectory tests for M2 detection. Court: hoop-left at (5.25, 25)."""
+"""Synthetic-trajectory tests for M2/M3 detection. Court: hoop-left at (5.25, 25)."""
 
-from jdub.events import detect_actions, holders, matchups, offense
+from jdub.events import classify_coverage, detect_actions, holders, matchups, offense
 
 ATT = [1, 2, 3, 4, 5]
 DEF = [11, 12, 13, 14, 15]
@@ -111,6 +111,54 @@ def test_cut_detected():
     cuts = [a for a in acts if a["type"] == "cut"]
     assert cuts and cuts[0]["p1"] == 2
     assert cuts[0]["confidence"] > 0.9
+
+
+def _pnr_positions(d2_xy):
+    return {
+        1: (30.0, 25.0),  # handler
+        11: (28.5, 25.0),  # on-ball defender
+        2: (27.5, 24.5),  # screener
+        12: d2_xy,  # screener's defender: position drives the coverage
+        3: (20.0, 45.0),
+        13: (18.5, 45.0),
+        4: (40.0, 8.0),
+        14: (38.5, 8.0),
+        5: (40.0, 42.0),
+        15: (38.5, 42.0),
+    }
+
+
+HOOP = (5.25, 25.0)
+SCREEN = {"start": 5, "end": 15, "p1": 2, "p2": 1}
+BASE_PAIRING = {1: 11, 2: 12, 3: 13, 4: 14, 5: 15}
+
+
+def test_coverage_switch():
+    frames = make_frames(60, lambda i: (30.0, 25.0, Z), lambda i: _pnr_positions((26.5, 23.5)))
+    swapped = BASE_PAIRING | {1: 12, 2: 11}
+    match = [BASE_PAIRING] * 20 + [swapped] * 40
+    cov = classify_coverage(frames, match, SCREEN, HOOP)
+    assert cov and cov["coverage"] == "switch" and cov["confidence"] >= 0.6
+
+
+def test_coverage_drop():
+    # screener's defender parked 12 ft from the hoop, on-ball defender far off the handler
+    def pos_fn(i):
+        p = _pnr_positions((12.0, 25.0))
+        p[11] = (22.0, 25.0)  # d1 sagging 8 ft off: not "over"
+        return p
+
+    frames = make_frames(60, lambda i: (30.0, 25.0, Z), pos_fn)
+    match = [BASE_PAIRING] * 60
+    cov = classify_coverage(frames, match, SCREEN, HOOP)
+    assert cov and cov["coverage"] == "drop"
+
+
+def test_coverage_over():
+    frames = make_frames(60, lambda i: (30.0, 25.0, Z), lambda i: _pnr_positions((26.5, 23.5)))
+    match = [BASE_PAIRING] * 60  # no swap, d1 stays attached (1.5 ft), d2 high
+    cov = classify_coverage(frames, match, SCREEN, HOOP)
+    assert cov and cov["coverage"] in ("over", "blitz")  # d2 is also near: blitz acceptable
 
 
 def test_handoff_detected():
