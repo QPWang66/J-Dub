@@ -199,14 +199,15 @@ def load_games(parquet_dir: Path = PARQUET_DIR) -> pl.DataFrame:
 def event_frames(moments: pl.DataFrame, event_id: int) -> list[dict]:
     """Shape one event's moments into render-ready frames for studio/viz.
 
-    Each frame: {quarter, game_clock, shot_clock, ball: [x, y, z] | None,
+    Each frame: {idx: moment_idx, quarter, game_clock, shot_clock, ball: [x, y, z] | None,
                  players: [[team_id, player_id, x, y], ...]}
     """
     ev = moments.filter(pl.col("event_id") == event_id).sort("moment_idx")
     frames = []
-    for _, group in ev.group_by("moment_idx", maintain_order=True):
+    for (mi,), group in ev.group_by("moment_idx", maintain_order=True):
         first = group.row(0, named=True)
         frame = {
+            "idx": mi,
             "quarter": first["quarter"],
             "game_clock": first["game_clock"],
             "shot_clock": first["shot_clock"],

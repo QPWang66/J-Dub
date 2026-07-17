@@ -24,6 +24,7 @@
   <span id="clock"></span>
 </div>
 <div id="bar"><span id="layers"></span><span id="legend"></span></div>
+<div id="bar"><span id="chips"></span></div>
 <canvas id="court" width="1000" height="560"></canvas>
 
 <script>
@@ -46,8 +47,10 @@ const cur = () => S.data ? S.data.frames[Math.floor(S.frame)] : null;
 // commentary subtitles (DOM layers: give them an update(S) hook instead of draw).
 const LAYERS = [
   { id: 'court', label: 'Court', on: true, draw: drawCourt },
+  { id: 'matchups', label: 'Matchups', on: true, draw: drawMatchups },
   { id: 'players', label: 'Players', on: true, draw: drawPlayers },
   { id: 'ball', label: 'Ball + trail', on: true, draw: drawBall },
+  { id: 'actions', label: 'Actions', on: true, draw: drawActions },
 ];
 
 function drawCourt(ctx) {
@@ -89,16 +92,53 @@ function spreadOverlaps(pts, minSep = 2.0) {
   return pts;
 }
 
-function drawPlayers(ctx, S) {
-  const f = cur(); if (!f) return;
-  const home = S.data.game.home_team_id;
+// Per-render map pid -> {x, y, team} using overlap-spread positions, so every
+// layer (dots, matchup lines, action rings) anchors to the same drawn location.
+function computePos() {
+  const f = cur(); if (!f) return null;
   const spread = spreadOverlaps(f.players.map(p => [p[2], p[3]]));
-  f.players.forEach(([teamId], i) => {
+  const map = new Map();
+  f.players.forEach((p, i) => map.set(p[1], { x: spread[i][0], y: spread[i][1], team: p[0] }));
+  return map;
+}
+
+function drawPlayers(ctx, S) {
+  if (!S.pos) return;
+  const home = S.data.game.home_team_id;
+  for (const { x, y, team } of S.pos.values()) {
     ctx.beginPath();
-    ctx.arc(ftx(spread[i][0]), fty(spread[i][1]), 0.9 * SCALE, 0, 2 * Math.PI);
-    ctx.fillStyle = teamId === home ? S.homeColor : S.visitorColor;
+    ctx.arc(ftx(x), fty(y), 0.9 * SCALE, 0, 2 * Math.PI);
+    ctx.fillStyle = team === home ? S.homeColor : S.visitorColor;
     ctx.fill();
-  });
+  }
+}
+
+function drawMatchups(ctx, S) {
+  const f = cur(); if (!f || !S.pos) return;
+  const pairs = S.matchupsByIdx.get(f.idx); if (!pairs) return;
+  ctx.strokeStyle = '#8899aa'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+  for (const [o, d] of pairs) {
+    const a = S.pos.get(o), b = S.pos.get(d);
+    if (!a || !b) continue;
+    ctx.beginPath(); ctx.moveTo(ftx(a.x), fty(a.y)); ctx.lineTo(ftx(b.x), fty(b.y)); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+}
+
+const ACTION_COLORS = { screen: '#9b5de5', drive: '#00bbf9', cut: '#00f5a0', handoff: '#f15bb5' };
+
+function drawActions(ctx, S) {
+  const f = cur(); if (!f || !S.pos) return;
+  for (const act of S.actions) {
+    if (f.idx < act.start_idx || f.idx > act.end_idx) continue;
+    const p = S.pos.get(act.p1); if (!p) continue;
+    const color = ACTION_COLORS[act.type] || '#ffffff';
+    ctx.strokeStyle = color; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(ftx(p.x), fty(p.y), 1.5 * SCALE, 0, 2 * Math.PI); ctx.stroke();
+    ctx.fillStyle = color; ctx.font = '12px system-ui';
+    const name = S.names[act.p1] || act.p1;
+    ctx.fillText(`${act.type} · ${name} (${act.confidence})`, ftx(p.x) + 17, fty(p.y) - 14);
+  }
 }
 
 function drawBall(ctx, S) {
@@ -125,6 +165,7 @@ let lastT = null;
 
 function render() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  S.pos = S.data ? computePos() : null;
   for (const l of LAYERS) if (l.on && (S.data || l.id === 'court')) l.draw(ctx, S);
   const f = cur();
   if (f) {
@@ -173,7 +214,28 @@ async function loadEvent() {
   const g = $('game').value, e = $('event').value;
   if (!g || !e) return;
   S.data = await (await fetch(`/api/games/${g}/events/${e}`)).json();
+  S.matchupsByIdx = new Map();
+  for (const r of S.data.matchups) {
+    if (!S.matchupsByIdx.has(r.moment_idx)) S.matchupsByIdx.set(r.moment_idx, []);
+    S.matchupsByIdx.get(r.moment_idx).push([r.off_player_id, r.def_player_id]);
+  }
+  S.actions = S.data.actions;
+  S.names = S.data.players;
   S.frame = 0; setPlaying(false);
+  const chips = $('chips');
+  chips.innerHTML = '';
+  for (const act of S.actions) {
+    const b = document.createElement('button');
+    const who = p => (S.names[p] || p);
+    b.textContent = `${act.type} ${who(act.p1)}${act.p2 != null ? '→' + who(act.p2) : ''} (${act.confidence})`;
+    b.style.borderColor = ACTION_COLORS[act.type] || '#444';
+    b.style.marginRight = '6px';
+    b.onclick = () => {
+      setPlaying(false);
+      S.frame = Math.max(0, S.data.frames.findIndex(f => f.idx >= act.start_idx));
+    };
+    chips.append(b);
+  }
   $('scrub').max = S.data.frames.length - 1;
   const gm = S.data.game;
   $('legend').innerHTML =

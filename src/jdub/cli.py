@@ -28,6 +28,15 @@ def parse(json_path: Path) -> None:
 
 
 @app.command()
+def detect(game_id: str) -> None:
+    """Run M2 detection (matchups + atomic actions) for a parsed game."""
+    from jdub.events import detect_to_parquet
+
+    counts = detect_to_parquet(game_id)
+    typer.echo(f"wrote {counts}")
+
+
+@app.command()
 def studio(port: int = 8000) -> None:
     """Run the jdub studio web viewer."""
     from jdub.studio import run

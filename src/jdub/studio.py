@@ -50,7 +50,31 @@ def event(game_id: str, event_id: int) -> dict:
     if not frames:
         raise HTTPException(404, f"event {event_id} has no moments")
     game = load_games().filter(pl.col("game_id") == game_id).to_dicts()[0]
-    return {"game": game, "frames": frames}
+    return {
+        "game": game,
+        "frames": frames,
+        "matchups": _detection(game_id, "matchups", event_id),
+        "actions": _detection(game_id, "actions", event_id),
+        "players": _rosters(game_id),
+    }
+
+
+def _detection(game_id: str, table: str, event_id: int) -> list[dict]:
+    """M2 detection rows for one event; [] until `jdub detect` has been run."""
+    path = PARQUET_DIR / table / f"{game_id}.parquet"
+    if not path.exists():
+        return []
+    return pl.read_parquet(path).filter(pl.col("event_id") == event_id).to_dicts()
+
+
+def _rosters(game_id: str) -> dict[str, str]:
+    path = PARQUET_DIR / "players" / f"{game_id}.parquet"
+    if not path.exists():
+        return {}
+    df = pl.read_parquet(path)
+    return {
+        str(r["player_id"]): f"{r['lastname']} #{r['jersey']}" for r in df.iter_rows(named=True)
+    }
 
 
 def run(port: int = 8000, parquet_dir: Path = PARQUET_DIR) -> None:
