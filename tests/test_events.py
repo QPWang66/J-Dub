@@ -5,6 +5,7 @@ from jdub.events import detect_actions, holders, matchups, offense
 ATT = [1, 2, 3, 4, 5]
 DEF = [11, 12, 13, 14, 15]
 TEAM_OF = {p: 100 for p in ATT} | {p: 200 for p in DEF}
+Z = 4.0  # held-ball height
 
 
 def make_frames(n, ball_fn, pos_fn):
@@ -22,10 +23,10 @@ def spread_5v5(att_xy):
 
 def test_holder_sustained_and_flight():
     att_xy = [(30.0, 25.0), (20.0, 5.0), (20.0, 45.0), (15.0, 15.0), (15.0, 35.0)]
-    # ball glued to player 1 for 20 frames, then flies far for 20
+    # ball glued to player 1 for 20 frames, then flies far/high for 20
     frames = make_frames(
         40,
-        lambda i: (30.0, 25.0) if i < 20 else (60.0, 25.0),
+        lambda i: (30.0, 25.0, Z) if i < 20 else (60.0, 25.0, 15.0),
         lambda i: spread_5v5(att_xy),
     )
     hold = holders(frames)
@@ -37,7 +38,7 @@ def test_holder_sustained_and_flight():
 
 def test_matchups_pair_nearest_defenders():
     att_xy = [(30.0, 25.0), (20.0, 5.0), (20.0, 45.0), (15.0, 15.0), (15.0, 35.0)]
-    frames = make_frames(30, lambda i: (30.0, 25.0), lambda i: spread_5v5(att_xy))
+    frames = make_frames(30, lambda i: (30.0, 25.0, Z), lambda i: spread_5v5(att_xy))
     hold = holders(frames)
     match = matchups(frames, offense(hold, TEAM_OF), TEAM_OF)
     assert match[0] == {p: p + 10 for p in ATT}
@@ -48,8 +49,8 @@ def test_screen_detected():
     def pos_fn(i):
         return {
             1: (30.0, 25.0),  # handler
-            11: (28.5, 25.0),  # handler's defender
-            2: (27.5, 24.5),  # screener: set, on the defender
+            11: (28.5, 25.0),  # handler's defender (dd1 = 1.5)
+            2: (27.5, 24.5),  # screener: da = 2.55, dd2 = 1.12 -> triangle fires
             12: (26.5, 23.5),
             3: (20.0, 5.0),
             13: (18.5, 5.0),
@@ -59,13 +60,14 @@ def test_screen_detected():
             15: (13.5, 15.0),
         }
 
-    frames = make_frames(40, lambda i: (30.0, 25.0), pos_fn)
+    frames = make_frames(40, lambda i: (30.0, 25.0, Z), pos_fn)
     hold = holders(frames)
     off = offense(hold, TEAM_OF)
     match = matchups(frames, off, TEAM_OF)
     acts = detect_actions(frames, hold, off, match, TEAM_OF)
     screens = [a for a in acts if a["type"] == "screen"]
     assert screens and screens[0]["p1"] == 2 and screens[0]["p2"] == 1
+    assert screens[0]["confidence"] == 1.0  # stationary screener = set screen
 
 
 def test_drive_detected():
@@ -77,12 +79,38 @@ def test_drive_detected():
             base[dpid] = (38.5, 8.0 + 10 * k)
         return base
 
-    frames = make_frames(50, lambda i: pos_fn(i)[1], pos_fn)
+    frames = make_frames(50, lambda i: (*pos_fn(i)[1], Z), pos_fn)
     hold = holders(frames)
     off = offense(hold, TEAM_OF)
     acts = detect_actions(frames, hold, off, [None] * 50, TEAM_OF)
     drives = [a for a in acts if a["type"] == "drive"]
     assert drives and drives[0]["p1"] == 1
+    assert drives[0]["confidence"] >= 0.9  # straight line: distance proportion ~1
+
+
+def test_cut_detected():
+    def pos_fn(i):
+        cx = 20.0 - 12.0 * min(i, 29) / 29  # cutter: 20 -> 8 over 30 frames
+        return {
+            1: (30.0, 25.0),
+            11: (28.5, 25.0),  # static handler
+            2: (cx, 25.0),
+            12: (cx - 1.5, 25.0),  # cutter arrives at the rim
+            3: (20.0, 45.0),
+            13: (18.5, 45.0),
+            4: (40.0, 8.0),
+            14: (38.5, 8.0),
+            5: (40.0, 42.0),
+            15: (38.5, 42.0),
+        }
+
+    frames = make_frames(40, lambda i: (30.0, 25.0, Z), pos_fn)
+    hold = holders(frames)
+    off = offense(hold, TEAM_OF)
+    acts = detect_actions(frames, hold, off, [None] * 40, TEAM_OF)
+    cuts = [a for a in acts if a["type"] == "cut"]
+    assert cuts and cuts[0]["p1"] == 2
+    assert cuts[0]["confidence"] > 0.9
 
 
 def test_handoff_detected():
@@ -90,10 +118,10 @@ def test_handoff_detected():
 
     def ball_fn(i):
         if i < 20:
-            return (30.0, 25.0)
+            return (30.0, 25.0, Z)
         if i < 22:
-            return (31.5, 25.0)
-        return (33.0, 25.0)
+            return (31.5, 25.0, Z)
+        return (33.0, 25.0, Z)
 
     frames = make_frames(45, ball_fn, lambda i: spread_5v5(att_xy))
     hold = holders(frames)
