@@ -14,8 +14,19 @@
   * { box-sizing: border-box; }
   body { font-family: var(--sans); background: var(--bg); color: var(--ink); margin: 0;
          display: flex; justify-content: center; padding: 18px; font-size: 14px; }
-  #card { width: min(1240px, 100%); background: var(--card); border: 1px solid var(--border);
+  #card { width: min(1720px, 100%); background: var(--card); border: 1px solid var(--border);
           border-radius: 14px; padding: 18px 22px 14px; }
+  #main { display: grid; grid-template-columns: 212px minmax(0, 1fr) 330px; gap: 16px; align-items: start; }
+  @media (max-width: 1280px) {  /* narrow screens: court first, panels stack below */
+    #main { grid-template-columns: 1fr; }
+    #center { order: -1; }
+    #chips { flex-direction: row; flex-wrap: wrap; }
+    #right .panel { max-height: 300px; }
+  }
+  .panel { border: 1px solid var(--border); border-radius: 10px; margin-bottom: 14px;
+           display: flex; flex-direction: column; }
+  .panel h2 { font-size: 11px; letter-spacing: .14em; color: var(--ink-2); font-weight: 600; margin: 0;
+              padding: 9px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; }
 
   /* -- header -- */
   header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
@@ -47,45 +58,44 @@
   #ptime { font-family: var(--mono); font-size: 14px; min-width: 118px; text-align: right; }
   #gclock { font-family: var(--mono); font-size: 12px; color: var(--ink-2); min-width: 132px; }
 
-  /* -- layer chips -- */
-  #chips { display: flex; gap: 8px; margin-bottom: 12px; }
-  #chips button { border-radius: 999px; padding: 5px 15px; font-size: 13px; color: var(--ink-2); }
+  /* -- left: layer toggles + on-court roster -- */
+  #chips { display: flex; flex-direction: column; gap: 6px; padding: 10px; }
+  #chips button { border-radius: 8px; padding: 6px 12px; font-size: 13px; color: var(--ink-2); text-align: left; }
   #chips button.on { background: var(--accent); border-color: var(--accent); color: #16110d; font-weight: 600; }
+  #roster { padding: 10px 12px; font-size: 12.5px; }
+  #roster .team { margin-bottom: 10px; }
+  #roster .team b { display: block; margin-bottom: 4px; }
+  #roster span.p { display: block; color: var(--ink-2); line-height: 1.75; }
+  #roster span.p em { font-style: normal; font-family: var(--mono); color: var(--ink); display: inline-block; min-width: 30px; }
 
-  /* -- calls stream -- */
-  #stream { border-top: 1px solid var(--border); }
-  #stream-head { display: flex; align-items: center; padding: 9px 2px 4px; }
-  #stream-head .h { font-size: 11px; letter-spacing: .14em; color: var(--ink-2); font-weight: 600; }
+  /* -- right: calls stream -- */
+  #right .panel { max-height: calc(100vh - 140px); margin-bottom: 0; }
   #stream-head .sort { margin-left: auto; display: flex; gap: 2px; }
   #stream-head .sort button { border: 0; background: transparent; font-family: var(--mono); font-size: 11px;
                               letter-spacing: .08em; color: var(--ink-2); padding: 2px 7px; }
   #stream-head .sort button.on { color: var(--accent); }
-  #calls { font-family: var(--mono); font-size: 13.5px; max-height: 172px; overflow-y: auto; }
-  .call { display: flex; gap: 14px; padding: 6px 10px; border-radius: 6px; cursor: pointer; align-items: baseline; }
+  #calls { font-family: var(--mono); font-size: 13px; overflow-y: auto; flex: 1; }
+  .call { padding: 7px 12px; cursor: pointer; border-left: 2px solid transparent;
+          border-bottom: 1px solid rgba(51,55,62,.55); }
   .call:hover { background: rgba(233,231,226,.04); }
-  .call.live { background: rgba(232,98,45,.1); }
-  .call .ts { color: var(--accent); }
-  .call .k { width: 78px; color: var(--ink); }
-  .call .who { color: var(--ink); flex: 1; font-family: var(--sans); }
+  .call.live { background: rgba(232,98,45,.1); border-left-color: var(--accent); }
+  .call .ts { color: var(--accent); margin-right: 10px; }
+  .call .k { color: var(--ink); }
+  .call .who { color: var(--ink); font-family: var(--sans); display: block; margin-top: 2px; }
   .call.dim .who, .call.dim .k { color: var(--ink-2); }
   .call.dim .who { text-decoration: underline dotted rgba(152,147,138,.7); text-underline-offset: 3px; }
-  .call .cf { min-width: 34px; text-align: right; }
+  .call .cf { float: right; }
   .call .cf.hi { color: var(--good); }
   .call .cf.lo { color: var(--warn); }
-  .empty { padding: 22px; text-align: center; color: var(--ink-2); }
+  .empty { padding: 26px 16px; text-align: center; color: var(--ink-2); }
   .empty .h { color: var(--ink); font-size: 13.5px; margin-bottom: 3px; }
   .empty .s { font-size: 12px; }
 
-  /* -- footer: pbp + roster -- */
-  footer { border-top: 1px solid var(--border); margin-top: 6px; padding: 12px 2px 2px; }
-  #pbp { font-size: 15px; }
+  /* -- under-court pbp -- */
+  #pbp { font-size: 15px; margin-top: 10px; }
   #pbp b { color: var(--ink-2); font-weight: 600; font-size: 11px; letter-spacing: .14em; margin-right: 8px; }
   #pbp a { color: var(--accent); text-decoration: none; margin-left: 12px; font-size: 13px; }
   #pbp a:hover { text-decoration: underline; }
-  #roster { display: flex; gap: 26px; font-size: 12.5px; margin-top: 9px; flex-wrap: wrap; }
-  #roster .team b { margin-right: 8px; }
-  #roster span.p { margin-right: 10px; white-space: nowrap; color: var(--ink-2); }
-  #roster span.p em { font-style: normal; font-family: var(--mono); color: var(--ink); }
 </style>
 </head>
 <body>
@@ -106,37 +116,45 @@
   <div id="status"></div>
 </header>
 
-<canvas id="court" width="1400" height="760"></canvas>
+<div id="main">
+  <aside id="left">
+    <div class="panel">
+      <h2>LAYERS</h2>
+      <div id="chips">
+        <button data-l="matchups">Matchups</button>
+        <button data-l="actions" class="on">Actions</button>
+        <button data-l="trail" class="on">Ball trail</button>
+        <button data-l="participants">Participants only</button>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>ON COURT</h2>
+      <div id="roster"></div>
+    </div>
+  </aside>
 
-<div id="transport">
-  <button id="play" title="Space">▶</button>
-  <select id="speed"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option></select>
-  <span id="gclock"></span>
-  <div id="scrubwrap">
-    <input type="range" id="scrub" min="0" max="0" value="0">
-    <div id="ticks"></div>
-  </div>
-  <span id="ptime"></span>
+  <section id="center">
+    <canvas id="court" width="1400" height="760"></canvas>
+    <div id="transport">
+      <button id="play" title="Space">▶</button>
+      <select id="speed"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option></select>
+      <span id="gclock"></span>
+      <div id="scrubwrap">
+        <input type="range" id="scrub" min="0" max="0" value="0">
+        <div id="ticks"></div>
+      </div>
+      <span id="ptime"></span>
+    </div>
+    <div id="pbp"></div>
+  </section>
+
+  <aside id="right">
+    <div class="panel">
+      <h2 id="stream-head">CALLS<span class="sort"><button data-s="time" class="on">TIME</button><button data-s="conf">CONF</button></span></h2>
+      <div id="calls"></div>
+    </div>
+  </aside>
 </div>
-
-<div id="chips">
-  <button data-l="matchups">Matchups</button>
-  <button data-l="actions" class="on">Actions</button>
-  <button data-l="trail" class="on">Ball trail</button>
-</div>
-
-<div id="stream">
-  <div id="stream-head">
-    <span class="h">CALLS</span>
-    <span class="sort"><button data-s="time" class="on">TIME</button><button data-s="conf">CONF</button></span>
-  </div>
-  <div id="calls"></div>
-</div>
-
-<footer>
-  <div id="pbp"></div>
-  <div id="roster"></div>
-</footer>
 </div>
 
 <script>
@@ -238,14 +256,27 @@ function holderPid(f) {
   return best;
 }
 
+// Participants only: the offensive five (plus their defenders when matchup
+// lines are shown). Falls back to everyone when no matchup info for the frame.
+function visiblePids(f) {
+  if (!S.layers.participants) return null;
+  const pairs = S.matchupsByIdx.get(f.idx);
+  if (!pairs) return null;
+  const keep = new Set();
+  for (const [o, d] of pairs) { keep.add(o); if (S.layers.matchups) keep.add(d); }
+  return keep;
+}
+
 function drawPlayers(ctx, S) {
   if (!S.pos) return;
   const f = cur();
   const home = S.data.game.home_team_id;
   const holder = holderPid(f);
+  const vis = visiblePids(f);
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.font = `700 ${Math.max(9, 0.62 * SC)}px ui-monospace, Menlo, monospace`;
   for (const [pid, { x, y, team }] of S.pos.entries()) {
+    if (vis && !vis.has(pid)) continue;
     ctx.beginPath();
     ctx.arc(ftx(x), fty(y), 1.0 * SC, 0, 2 * Math.PI);
     ctx.fillStyle = team === home ? S.homeColor : S.visitorColor;
