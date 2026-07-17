@@ -22,8 +22,9 @@ cd .. && uv run jdub detect cv-myclip
 
 | Stage | Method | Ceiling / upgrade |
 |-------|--------|-------------------|
-| Detect + track | YOLO11m (COCO pretrained) + ByteTrack, person + sports-ball classes | fine-tune on basketball broadcast data (C2) |
-| Homography | manual anchor points on frame 0 (`calib/*.json`) + LK optical-flow propagation | trained court-keypoint model → absolute H per frame (C2) |
+| Players: detect + track | YOLO11m (COCO pretrained) + BoT-SORT (`--tracker`), then court-space tracklet sewing (`merge_tracks`: temporal hole + reachable jump + torso-color agreement) | fine-tune detector on basketball broadcast data; PRTreID-grade ReID (C2) |
+| Ball | [WASB](https://github.com/nttcom/WASB-SBDT) HRNet heatmap model (BMVC'23, trained on NBA broadcast, MIT) when `weights/wasb_basketball_best.pth.tar` exists — `uvx gdown 1nfECuSyJvPUmz3njZCdFERSQQbERt8FU -O weights/wasb_basketball_best.pth.tar`; else YOLO sports-ball. Either way candidates pass a motion-continuity gate (nearest reachable to last ball) | fine-tune WASB on own footage |
+| Homography | manual anchor points on frame 0 (`calib/*.json`, `"static": true` for fixed cameras) + LK optical-flow propagation for panning cameras | trained court-keypoint model → absolute H per frame (C2) |
 | Team split | per-track median torso color (Lab) + k-means(3), two biggest clusters = teams, third = refs | jersey/number ReID (PRTreID-style) |
 | Output | in-court filter → top-10 tracks → gap interpolation → resample 25 Hz → moments/players/games Parquet | — |
 

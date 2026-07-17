@@ -26,13 +26,18 @@ from jdub_cv.teams import assign_teams, torso_color
 
 OUT_HZ = 25.0  # SportVU rate; events.py assumes it
 PERSON_CONF = 0.35
-BALL_CONF = 0.10
+BALL_CONF = 0.05  # ball candidates kept loose; picked by motion continuity below
+BALL_MAX_FRAC = 0.08  # ball box no wider than this fraction of the frame
+BALL_JUMP = 40.0  # ft/s: fastest believable ball travel when gating candidates
 MARGIN = 1.0  # ft of slack around the court when testing "on court"
 IN_COURT_FRAC = 0.6
 MIN_TRACK_S = 1.0
 PLAYER_GAP_S = 0.6  # interpolate track holes up to this long
 BALL_GAP_S = 1.5
 COLOR_EVERY = 5  # frames between torso-color samples
+MERGE_GAP_S = 2.5  # sew tracklet fragments across holes up to this long
+MERGE_SPEED = 18.0  # ft/s a player can plausibly cover inside the hole
+MERGE_COLOR = 30.0  # max Lab distance between fragment torso colors
 # ponytail: ball z is unknowable from one camera — emitted as 0.0, which always
 # passes the holder z-gate; shot/air phases will look like floor possession
 
@@ -56,6 +61,57 @@ def _interp(series: dict[int, tuple[float, float]], max_gap: int) -> dict[int, t
     return out
 
 
+def merge_tracks(
+    obs: dict[int, dict[int, tuple[float, float]]],
+    colors: dict[int, list[np.ndarray]],
+    fps: float,
+) -> tuple[dict[int, dict[int, tuple[float, float]]], dict[int, list[np.ndarray]]]:
+    """Sew tracker-ID fragments of the same player back together.
+
+    A fragment may continue an earlier one when it starts after the other ends
+    (never merge concurrent tracks — those are different people), the hole is
+    short, the court-space jump is coverable at MERGE_SPEED, and torso colors
+    agree. Greedy, earliest-start-first; cheapest candidate wins.
+    """
+    med = {t: (np.median(np.array(cs), axis=0) if cs else None) for t, cs in colors.items()}
+    roots: list[int] = []  # merged track heads, keyed by their first fragment id
+    frames: dict[int, dict[int, tuple[float, float]]] = {}
+    cols: dict[int, list[np.ndarray]] = {}
+    tail: dict[int, tuple[int, float, float]] = {}  # root -> (end_frame, x, y)
+    for t in sorted(obs, key=lambda t: min(obs[t])):
+        fs = obs[t]
+        s = min(fs)
+        sx, sy = fs[s]
+        best, best_cost = None, None
+        for r in roots:
+            end, ex, ey = tail[r]
+            gap = s - end
+            if gap <= 0 or gap > MERGE_GAP_S * fps:
+                continue
+            dist = np.hypot(sx - ex, sy - ey)
+            if dist > 2.0 + MERGE_SPEED * gap / fps:
+                continue
+            if med.get(t) is not None and med.get(r) is not None:
+                if np.linalg.norm(med[t] - med[r]) > MERGE_COLOR:
+                    continue
+            cost = dist + 5.0 * gap / fps
+            if best_cost is None or cost < best_cost:
+                best, best_cost = r, cost
+        if best is None:
+            roots.append(t)
+            frames[t] = dict(fs)
+            cols[t] = list(colors.get(t, []))
+        else:
+            frames[best].update(fs)
+            cols[best].extend(colors.get(t, []))
+            if med.get(best) is None:
+                med[best] = med.get(t)
+            t = best
+        e = max(frames[t])
+        tail[t] = (e, *frames[t][e])
+    return frames, cols
+
+
 def run(
     video: Path,
     calib: Path,
@@ -65,6 +121,8 @@ def run(
     overlay: Path | None = None,
     limit: int | None = None,
     imgsz: int = 1280,
+    tracker: str = "botsort.yaml",
+    ball_weights: Path | None = None,
 ) -> dict[str, int]:
     from ultralytics import YOLO
 
@@ -74,6 +132,14 @@ def run(
 
     calibrator = Calibrator(calib)
     model = YOLO(model_name)
+    if ball_weights is None:
+        default = Path(__file__).resolve().parents[2] / "weights" / "wasb_basketball_best.pth.tar"
+        ball_weights = default if default.exists() else None
+    wasb = None
+    if ball_weights is not None:
+        from jdub_cv.ball import WasbBallDetector
+
+        wasb = WasbBallDetector(ball_weights)
     obs: dict[int, dict[int, tuple[float, float]]] = defaultdict(dict)  # tid -> frame -> ft
     colors: dict[int, list[np.ndarray]] = defaultdict(list)
     ball: dict[int, tuple[float, float]] = {}
@@ -86,6 +152,7 @@ def run(
             classes=[0, 32],
             conf=BALL_CONF,
             imgsz=imgsz,
+            tracker=tracker,
             verbose=False,
         )
     ):
@@ -93,32 +160,73 @@ def run(
             break
         h = calibrator.update(r.orig_img).copy()
         hs.append(h)
-        if r.boxes is None or not len(r.boxes):
-            continue
-        cls = r.boxes.cls.cpu().numpy()
-        conf = r.boxes.conf.cpu().numpy()
-        xyxy = r.boxes.xyxy.cpu().numpy()
-        ids = r.boxes.id.cpu().numpy() if r.boxes.id is not None else np.full(len(cls), -1)
-        persons = (cls == 0) & (conf >= PERSON_CONF) & (ids >= 0)
-        if persons.any():
-            feet = np.stack([(xyxy[persons, 0] + xyxy[persons, 2]) / 2, xyxy[persons, 3]], axis=1)
-            court = to_court(h, feet)
-            for tid, box, (cx, cy) in zip(ids[persons], xyxy[persons], court):
-                if not _in_court(cx, cy):
-                    continue
-                obs[int(tid)][fi] = (float(cx), float(cy))
-                if fi % COLOR_EVERY == 0:
-                    c = torso_color(r.orig_img, box)
-                    if c is not None:
-                        colors[int(tid)].append(c)
-        balls = cls == 32
-        if balls.any():
-            b = xyxy[balls][conf[balls].argmax()]
-            ((bx, by),) = to_court(h, [[(b[0] + b[2]) / 2, (b[1] + b[3]) / 2]])
-            if _in_court(bx, by):
-                ball[fi] = (float(bx), float(by))
+        has_boxes = r.boxes is not None and len(r.boxes)
+        if has_boxes:
+            cls = r.boxes.cls.cpu().numpy()
+            conf = r.boxes.conf.cpu().numpy()
+            xyxy = r.boxes.xyxy.cpu().numpy()
+            ids = r.boxes.id.cpu().numpy() if r.boxes.id is not None else np.full(len(cls), -1)
+            persons = (cls == 0) & (conf >= PERSON_CONF) & (ids >= 0)
+            if persons.any():
+                feet = np.stack(
+                    [(xyxy[persons, 0] + xyxy[persons, 2]) / 2, xyxy[persons, 3]], axis=1
+                )
+                court = to_court(h, feet)
+                for tid, box, (cx, cy) in zip(ids[persons], xyxy[persons], court):
+                    if not _in_court(cx, cy):
+                        continue
+                    obs[int(tid)][fi] = (float(cx), float(cy))
+                    if fi % COLOR_EVERY == 0:
+                        c = torso_color(r.orig_img, box)
+                        if c is not None:
+                            colors[int(tid)].append(c)
+        # ball candidates from both detectors; the motion-continuity gate picks
+        pts: list[list[float]] = []
+        scores: list[float] = []
+        if wasb is not None:
+            det = wasb.detect(r.orig_img)
+            if det:
+                pts.append([det[0], det[1]])
+                scores.append(det[2])
+        if has_boxes:
+            balls = (cls == 32) & ((xyxy[:, 2] - xyxy[:, 0]) <= BALL_MAX_FRAC * r.orig_img.shape[1])
+            if balls.any():
+                pts.extend(
+                    np.stack(
+                        [
+                            (xyxy[balls, 0] + xyxy[balls, 2]) / 2,
+                            (xyxy[balls, 1] + xyxy[balls, 3]) / 2,
+                        ],
+                        axis=1,
+                    ).tolist()
+                )
+                scores.extend(float(c) for c in conf[balls])
+        raw = np.array(pts) if pts else np.empty((0, 2))
+        if len(raw):
+            cands = [
+                (float(cf), float(cx), float(cy))
+                for cf, (cx, cy) in zip(scores, to_court(h, raw))
+                if _in_court(cx, cy)
+            ]
+            if cands:
+                if ball:
+                    last_fi = max(ball)
+                    lx, ly = ball[last_fi]
+                    dt = (fi - last_fi) / fps
+                    reach = 3.0 + BALL_JUMP * dt
+                    near = [c for c in cands if np.hypot(c[1] - lx, c[2] - ly) <= reach]
+                    pick = (
+                        min(near, key=lambda c: np.hypot(c[1] - lx, c[2] - ly))
+                        if near and dt <= BALL_GAP_S
+                        else max(cands, key=lambda c: c[0])
+                    )
+                else:
+                    pick = max(cands, key=lambda c: c[0])
+                ball[fi] = (pick[1], pick[2])
 
     n_frames = len(hs)
+    n_fragments = len(obs)
+    obs, colors = merge_tracks(obs, colors, fps)
     # the 10 real players: on-court, long-lived, non-referee, max 5 per team
     alive = {
         t: fs
@@ -223,20 +331,19 @@ def run(
     if overlay is not None:
         _write_overlay(video, overlay, hs, tracks, picked, ball, fps)
 
-    complete = (
-        moments.group_by("moment_idx")
-        .agg(
-            ((pl.col("entity") == "player").sum().alias("np")),
-            (pl.col("entity") == "ball").sum().alias("nb"),
-        )
-        .filter((pl.col("np") == 10) & (pl.col("nb") == 1))
-        .height
+    per_frame = moments.group_by("moment_idx").agg(
+        ((pl.col("entity") == "player").sum().alias("np")),
+        (pl.col("entity") == "ball").sum().alias("nb"),
     )
+    complete = per_frame.filter((pl.col("np") == 10) & (pl.col("nb") == 1)).height
     return {
         "frames": n_frames,
+        "fragments": n_fragments,
+        "tracks_merged": len(obs),
         "tracks_kept": len(picked),
         "moments_rows": len(moments),
         "moments_25hz": n_out,
+        "players_per_frame_median": float(per_frame["np"].median() or 0),
         "complete_frames": complete,
         "ball_frames": len(ball),
     }
@@ -300,6 +407,13 @@ def main() -> None:
     ap.add_argument("--overlay", type=Path, default=None)
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--imgsz", type=int, default=1280)
+    ap.add_argument("--tracker", default="botsort.yaml", help="botsort.yaml | bytetrack.yaml")
+    ap.add_argument(
+        "--ball-weights",
+        type=Path,
+        default=None,
+        help="WASB checkpoint; default weights/wasb_basketball_best.pth.tar if present",
+    )
     args = ap.parse_args()
     game_id = args.game_id or f"cv-{args.video.stem}"
     print(
@@ -312,6 +426,8 @@ def main() -> None:
             args.overlay,
             args.limit,
             args.imgsz,
+            args.tracker,
+            args.ball_weights,
         )
     )
 

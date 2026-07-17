@@ -3,3 +3,4 @@ runs/
 out/
 .venv/
 __pycache__/
+weights/
