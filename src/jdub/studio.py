@@ -42,7 +42,25 @@ def events(game_id: str) -> list[dict]:
         ev = ev.join(pbp, on="event_id", how="left")
     else:
         ev = ev.with_columns(pl.lit(None, dtype=pl.String).alias("desc"))
-    return ev.sort("event_id").to_dicts()
+    actions_path = PARQUET_DIR / "actions" / f"{game_id}.parquet"
+    if actions_path.exists():
+        summary = (
+            pl.read_parquet(actions_path)
+            .group_by("event_id")
+            .agg(
+                pl.len().alias("n_actions"),
+                pl.col("confidence").max().alias("max_conf"),
+                pl.col("type").unique().sort().alias("action_types"),
+            )
+        )
+        ev = ev.join(summary, on="event_id", how="left")
+    else:
+        ev = ev.with_columns(
+            pl.lit(0).alias("n_actions"),
+            pl.lit(None, dtype=pl.Float64).alias("max_conf"),
+            pl.lit([], dtype=pl.List(pl.String)).alias("action_types"),
+        )
+    return ev.with_columns(pl.col("n_actions").fill_null(0)).sort("event_id").to_dicts()
 
 
 @app.get("/api/games/{game_id}/events/{event_id}")
@@ -80,7 +98,7 @@ def _rosters(game_id: str) -> dict[str, dict]:
     }
 
 
-def run(port: int = 8000, parquet_dir: Path = PARQUET_DIR) -> None:
+def run(port: int = 8000) -> None:
     import uvicorn
 
     uvicorn.run(app, host="127.0.0.1", port=port)

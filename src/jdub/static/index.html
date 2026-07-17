@@ -5,87 +5,141 @@
 <title>jdub studio</title>
 <style>
   :root {
-    --bg: #14181f; --panel: #1b212b; --border: #2a3341;
-    --ink: #e7ecf3; --ink-2: #8b96a5; --accent: #3d8fd1; --gold: #ffc24b;
+    --bg: #1b1e22; --panel: #22262b; --border: #32373d;
+    --ink: #e9e7e2; --ink-2: #98938a; --accent: #e8622d;
+    --sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   }
   * { box-sizing: border-box; }
-  body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: var(--bg); color: var(--ink); margin: 0; padding: 20px 24px; }
-  .bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
-  #wordmark { font-weight: 700; font-size: 17px; letter-spacing: .02em; margin-right: 6px; }
+  body { font-family: var(--sans); background: var(--bg); color: var(--ink); margin: 0; padding: 16px 20px; font-size: 14px; }
+  .mono { font-family: var(--mono); }
+
+  /* -- top bars -- */
+  .bar { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+  #wordmark { font-weight: 700; font-size: 16px; margin-right: 8px; }
   #wordmark span { color: var(--ink-2); font-weight: 400; }
   select, button {
     background: var(--panel); color: var(--ink); border: 1px solid var(--border);
-    border-radius: 8px; padding: 6px 12px; font-size: 13px; font-family: inherit;
+    border-radius: 6px; padding: 5px 11px; font-size: 13px; font-family: inherit; cursor: pointer;
   }
-  select:hover, button:hover { border-color: #3b475a; }
-  button { cursor: pointer; }
-  #play { width: 40px; font-size: 14px; background: var(--accent); border-color: var(--accent); color: #0e1116; font-weight: 700; }
-  #event { max-width: 520px; }
-  #scrubwrap { flex: 1; min-width: 220px; }
+  select:hover, button:hover { border-color: #454c55; }
+  #posslabel { font-family: var(--mono); font-size: 13px; color: var(--ink-2); }
+  #play { width: 38px; font-weight: 700; }
+  #play.on { background: var(--accent); border-color: var(--accent); color: #16110d; }
+  #scrubwrap { flex: 1; min-width: 200px; }
   #scrub { width: 100%; margin: 0; accent-color: var(--accent); }
-  #ticks { position: relative; height: 8px; margin-top: 2px; }
-  .tick { position: absolute; width: 4px; height: 8px; border-radius: 2px; cursor: pointer; }
-  canvas { background: #12161d; border: 1px solid var(--border); border-radius: 12px; display: block; width: 100%; }
-  #clock { font-variant-numeric: tabular-nums; min-width: 132px; color: var(--ink-2); font-size: 13px; text-align: right; }
-  .toggle { font-size: 13px; color: var(--ink-2); user-select: none; white-space: nowrap; }
-  .toggle input { accent-color: var(--accent); margin-right: 4px; }
-  #chips { display: flex; gap: 8px; flex-wrap: wrap; }
-  #chips button { border-radius: 999px; font-size: 12.5px; padding: 5px 12px; }
-  #chips button.active { color: #0e1116; font-weight: 600; }
-  #chips .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
-  #pbp { color: var(--ink-2); font-size: 13.5px; margin: 2px 0 10px; min-height: 18px; }
+  #ticks { position: relative; height: 7px; margin-top: 2px; }
+  .tick { position: absolute; width: 4px; height: 7px; border-radius: 1px; cursor: pointer; background: var(--accent); }
+  #clock { font-family: var(--mono); font-size: 13px; color: var(--ink); min-width: 150px; text-align: right; }
+  .seg { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; padding: 5px 10px; font-size: 12.5px; color: var(--ink-2); background: transparent; }
+  .seg button.on { background: var(--panel); color: var(--ink); }
+  .toggle { font-size: 12.5px; color: var(--ink-2); user-select: none; white-space: nowrap; }
+  .toggle input { accent-color: var(--accent); margin-right: 3px; }
+
+  /* -- main grid -- */
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 14px; align-items: start; }
+  canvas { background: #17191d; border: 1px solid var(--border); border-radius: 10px; display: block;
+           width: min(100%, calc((100vh - 250px) * 1.842)); height: auto; }
+  #pbp { color: var(--ink-2); font-size: 13px; margin-top: 10px; min-height: 18px; }
   #pbp b { color: var(--ink); font-weight: 600; }
   #pbp a { color: var(--accent); text-decoration: none; margin-left: 12px; }
   #pbp a:hover { text-decoration: underline; }
-  #roster { display: flex; gap: 28px; font-size: 13px; margin-top: 10px; flex-wrap: wrap; }
-  #roster .team b { margin-right: 8px; font-size: 13px; }
-  #roster span.p { margin-right: 11px; white-space: nowrap; color: var(--ink-2); }
-  #roster span.p em { font-style: normal; color: var(--ink); font-weight: 600; }
+  #roster { display: flex; gap: 26px; font-size: 12.5px; margin-top: 8px; flex-wrap: wrap; }
+  #roster .team b { margin-right: 8px; }
+  #roster span.p { margin-right: 10px; white-space: nowrap; color: var(--ink-2); }
+  #roster span.p em { font-style: normal; font-family: var(--mono); color: var(--ink); }
+
+  /* -- side panels -- */
+  aside { display: flex; flex-direction: column; gap: 14px; max-height: calc(100vh - 150px); }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; display: flex; flex-direction: column; min-height: 120px; }
+  .panel h2 { font-size: 11px; letter-spacing: .14em; color: var(--ink-2); font-weight: 600; margin: 0;
+              padding: 10px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; }
+  .panel h2 .sort { margin-left: auto; display: flex; gap: 2px; }
+  .panel h2 .sort button { border: 0; background: transparent; color: var(--ink-2); font-size: 11px; letter-spacing: .08em; padding: 0 6px; }
+  .panel h2 .sort button.on { color: var(--accent); }
+  #posslist { overflow-y: auto; flex: 1.3; }
+  #calls { overflow-y: auto; flex: 1; }
+  .row { padding: 8px 12px; border-bottom: 1px solid rgba(50,55,61,.55); cursor: pointer; border-left: 2px solid transparent; }
+  .row:hover { background: rgba(233,231,226,.03); }
+  .row.on { border-left-color: var(--accent); background: rgba(232,98,45,.07); }
+  .row .t { font-family: var(--mono); font-size: 12px; color: var(--ink); }
+  .row .d { font-size: 12px; color: var(--ink-2); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .tags { float: right; font-family: var(--mono); font-size: 10.5px; color: var(--ink-2); letter-spacing: .08em; }
+  .call { padding: 9px 12px; border-bottom: 1px solid rgba(50,55,61,.55); cursor: pointer; border-left: 2px solid transparent; }
+  .call:hover { background: rgba(233,231,226,.03); }
+  .call.live { border-left-color: var(--accent); background: rgba(232,98,45,.07); }
+  .call .k { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; color: var(--ink-2); }
+  .call .who { font-size: 13px; margin-top: 1px; }
+  .call .when { font-family: var(--mono); font-size: 11px; color: var(--ink-2); float: right; }
+  .call.dim .who { color: var(--ink-2); text-decoration: underline dotted rgba(152,147,138,.7); text-underline-offset: 3px; }
+  .empty { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; color: var(--ink-2); padding: 18px; text-align: center; }
+  .empty .h { font-size: 13.5px; color: var(--ink); margin-bottom: 4px; }
+  .empty .s { font-size: 12px; }
 </style>
 </head>
 <body>
 <div class="bar">
   <div id="wordmark">jdub <span>studio</span></div>
   <select id="game"></select>
-  <button id="prev" title="Previous possession">‹</button>
-  <select id="event"></select>
-  <button id="next" title="Next possession">›</button>
+  <span id="posslabel"></span>
 </div>
 <div class="bar">
   <button id="play" title="Space">▶</button>
   <select id="speed"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option></select>
+  <button id="prev" title="Previous possession">‹</button>
+  <button id="next" title="Next possession">›</button>
   <div id="scrubwrap">
     <input type="range" id="scrub" min="0" max="0" value="0">
     <div id="ticks"></div>
   </div>
   <span id="clock"></span>
+  <div class="seg" id="viewseg">
+    <button data-v="all" class="on">All</button><button data-v="off">Offense</button><button data-v="offdef">Off+Def</button>
+  </div>
+  <label class="toggle"><input type="checkbox" id="follow"> Follow</label>
 </div>
-<div class="bar">
-  <span id="layers"></span>
-  <label class="toggle"><input type="checkbox" id="follow"> Follow cam</label>
-</div>
-<div class="bar" id="chips"></div>
-<div id="pbp"></div>
-<canvas id="court" width="1400" height="760"></canvas>
-<div id="roster"></div>
+<main>
+  <section id="stage">
+    <canvas id="court" width="1400" height="760"></canvas>
+    <div id="pbp"></div>
+    <div id="roster"></div>
+  </section>
+  <aside>
+    <div class="panel">
+      <h2>POSSESSIONS<span class="sort"><button data-s="time" class="on">TIME</button><button data-s="conf">CALLS</button></span></h2>
+      <div id="posslist"></div>
+    </div>
+    <div class="panel">
+      <h2>CALLS</h2>
+      <div id="calls"></div>
+    </div>
+  </aside>
+</main>
 
 <script>
-// ---- palette (validated: lightness band, chroma, CVD pairs, contrast) -------
-const TEAM_COLORS = { OKC: '#3D8FD1', TOR: '#E05A50', POR: '#E05A50', CHA: '#2FA8A0', SAC: '#2FA8A0', MEM: '#B8892E', LAL: '#B8892E' };
+// ---- palette: validated per-game team pairs; one accent (marker orange) -----
+const TEAM_COLORS = {
+  OKC: '#3D8FD1', GSW: '#B8892E', CLE: '#E05A50', IND: '#3D8FD1',
+  TOR: '#E05A50', POR: '#E05A50', CHA: '#2FA8A0', SAC: '#2FA8A0', MEM: '#B8892E', LAL: '#B8892E',
+};
 const FALLBACK = ['#E05A50', '#3D8FD1'];
-const ACTION_COLORS = { screen: '#A78BFA', drive: '#38BDF8', cut: '#34D399', handoff: '#F472B6' };
-const COURT = { floor: '#1c222d', line: '#47536a', paint: 'rgba(255,255,255,0.025)', rim: '#ff8c42', board: '#9aa7b8' };
-const BALL = '#f5871a';
+const ACCENT = '#e8622d';
+const CHALK = '#e9e7e2';
+const COURT = { floor: '#212429', line: '#4d5560', paint: 'rgba(233,231,226,0.03)' };
+const CONF_BAR = 0.7;  // below this a call is typographically "quiet"
 
-// ---- camera: px = ox + ft * scale; lerped toward target each tick -----------
+// ---- camera ------------------------------------------------------------------
 const W = 1400, H = 760, PAD = 34;
 const FULL_SCALE = Math.min((W - 2 * PAD) / 94, (H - 2 * PAD) / 50);
 const FOLLOW_SCALE = 21;
 const S = {
-  data: null, frame: 0, playing: false, speed: 1,
+  data: null, frame: 0, playing: false, speed: 1, view: 'all',
   cam: { scale: FULL_SCALE, ox: PAD + (W - 2 * PAD - 94 * FULL_SCALE) / 2, oy: PAD + (H - 2 * PAD - 50 * FULL_SCALE) / 2 },
   homeColor: FALLBACK[0], visitorColor: FALLBACK[1],
+  events: [], sort: 'time', currentId: null,
 };
+const $ = id => document.getElementById(id);
 const ftx = x => S.cam.ox + x * S.cam.scale;
 const fty = y => S.cam.oy + y * S.cam.scale;
 const cur = () => S.data ? S.data.frames[Math.floor(S.frame)] : null;
@@ -110,49 +164,40 @@ function updateCam() {
   S.cam.oy += (t.oy - S.cam.oy) * k;
 }
 
-// ---- layer system ------------------------------------------------------------
-// Each layer: {id, label, on, draw(ctx, S)}. Later milestones append here:
-// M3 coverage labels, M4 fact panel / commentary subtitles (DOM layers get an
-// update(S) hook instead of draw).
+// ---- scene layers (internal registry; milestones append here — M3 coverage,
+// M4 fact-linked highlights. Visibility is driven by the view mode, not checkboxes.)
 const LAYERS = [
-  { id: 'court', label: 'Court', on: true, draw: drawCourt },
-  { id: 'matchups', label: 'Matchups', on: true, draw: drawMatchups },
-  { id: 'players', label: 'Players', on: true, draw: drawPlayers },
-  { id: 'ball', label: 'Ball + trail', on: true, draw: drawBall },
-  { id: 'actions', label: 'Actions', on: true, draw: drawActions },
+  { id: 'court', draw: drawCourt },
+  { id: 'matchups', draw: drawMatchups },   // only in Off+Def view
+  { id: 'players', draw: drawPlayers },
+  { id: 'ball', draw: drawBall },
+  { id: 'actions', draw: drawActions },
 ];
 
 function drawCourt(ctx) {
   const sc = S.cam.scale;
-  // floor
   ctx.fillStyle = COURT.floor;
-  ctx.beginPath(); ctx.roundRect(ftx(0), fty(0), 94 * sc, 50 * sc, 6); ctx.fill();
-  ctx.strokeStyle = COURT.line; ctx.lineWidth = 1.5;
-  const rect = (x, y, w, h, fill) => {
-    if (fill) { ctx.fillStyle = COURT.paint; ctx.fillRect(ftx(x), fty(y), w * sc, h * sc); }
-    ctx.strokeRect(ftx(x), fty(y), w * sc, h * sc);
-  };
+  ctx.beginPath(); ctx.roundRect(ftx(0), fty(0), 94 * sc, 50 * sc, 4); ctx.fill();
+  ctx.strokeStyle = COURT.line; ctx.lineWidth = 1.25;
   const arc = (x, y, r, a0, a1) => { ctx.beginPath(); ctx.arc(ftx(x), fty(y), r * sc, a0, a1); ctx.stroke(); };
-  const line = (x0, y0, x1, y1, color) => {
-    if (color) ctx.strokeStyle = color;
-    ctx.beginPath(); ctx.moveTo(ftx(x0), fty(y0)); ctx.lineTo(ftx(x1), fty(y1)); ctx.stroke();
-    ctx.strokeStyle = COURT.line;
-  };
+  const line = (x0, y0, x1, y1) => { ctx.beginPath(); ctx.moveTo(ftx(x0), fty(y0)); ctx.lineTo(ftx(x1), fty(y1)); ctx.stroke(); };
   ctx.strokeRect(ftx(0), fty(0), 94 * sc, 50 * sc);
   line(47, 0, 47, 50);
   arc(47, 25, 6, 0, 2 * Math.PI);
   for (const [bx, dir] of [[5.25, 1], [88.75, -1]]) {
     const base = bx - dir * 5.25;
-    rect(Math.min(base, base + dir * 19), 17, 19, 16, true);
+    ctx.fillStyle = COURT.paint;
+    ctx.fillRect(ftx(Math.min(base, base + dir * 19)), fty(17), 19 * sc, 16 * sc);
+    ctx.strokeRect(ftx(Math.min(base, base + dir * 19)), fty(17), 19 * sc, 16 * sc);
     arc(base + dir * 19, 25, 6, 0, 2 * Math.PI);
-    line(base + dir * 4, 22, base + dir * 4, 28, COURT.board);
+    line(base + dir * 4, 22, base + dir * 4, 28);
     line(base, 3, base + dir * 14, 3);
     line(base, 47, base + dir * 14, 47);
     const a = Math.asin(22 / 23.75);
     if (dir === 1) arc(bx, 25, 23.75, -a, a); else arc(bx, 25, 23.75, Math.PI - a, Math.PI + a);
-    ctx.strokeStyle = COURT.rim; ctx.lineWidth = 2;
+    ctx.strokeStyle = ACCENT;
     arc(bx, 25, 0.75, 0, 2 * Math.PI);
-    ctx.strokeStyle = COURT.line; ctx.lineWidth = 1.5;
+    ctx.strokeStyle = COURT.line;
   }
 }
 
@@ -174,7 +219,6 @@ function spreadOverlaps(pts, minSep = 2.0) {
   return pts;
 }
 
-// Per-render map pid -> {x, y, team} with spread positions; all layers share anchors.
 function computePos() {
   const f = cur(); if (!f) return null;
   const spread = spreadOverlaps(f.players.map(p => [p[2], p[3]]));
@@ -183,7 +227,6 @@ function computePos() {
   return map;
 }
 
-// Ball holder (display approximation): nearest player within 3 ft of the ball.
 function holderPid(f) {
   if (!f.ball) return null;
   let best = null, bd = 3.0;
@@ -194,29 +237,35 @@ function holderPid(f) {
   return best;
 }
 
+// pids visible under the current view mode; null = show everyone
+function visiblePids(f) {
+  if (S.view === 'all') return null;
+  const pairs = S.matchupsByIdx.get(f.idx);
+  if (!pairs) return null;  // no matchup info -> fall back to all
+  const keep = new Set();
+  for (const [o, d] of pairs) { keep.add(o); if (S.view === 'offdef') keep.add(d); }
+  return keep;
+}
+
 function drawPlayers(ctx, S) {
   if (!S.pos) return;
   const f = cur(), sc = S.cam.scale;
   const home = S.data.game.home_team_id;
   const holder = holderPid(f);
+  const vis = visiblePids(f);
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.font = `700 ${Math.max(9, 0.62 * sc)}px system-ui`;
+  ctx.font = `700 ${Math.max(9, 0.62 * sc)}px ${'ui-monospace, Menlo, monospace'}`;
   for (const [pid, { x, y, team }] of S.pos.entries()) {
-    ctx.save();
-    ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3;
+    if (vis && !vis.has(pid)) continue;
     ctx.beginPath();
     ctx.arc(ftx(x), fty(y), 1.0 * sc, 0, 2 * Math.PI);
     ctx.fillStyle = team === home ? S.homeColor : S.visitorColor;
     ctx.fill();
-    ctx.restore();
-    ctx.strokeStyle = 'rgba(232,238,245,0.85)'; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(ftx(x), fty(y), 1.0 * sc, 0, 2 * Math.PI); ctx.stroke();
-    if (pid === holder) {
-      ctx.save();
-      ctx.strokeStyle = '#ffc24b';
-      ctx.lineWidth = 2.5; ctx.shadowColor = '#ffc24b'; ctx.shadowBlur = 10;
-      ctx.beginPath(); ctx.arc(ftx(x), fty(y), 1.28 * sc, 0, 2 * Math.PI); ctx.stroke();
-      ctx.restore();
+    ctx.strokeStyle = 'rgba(233,231,226,0.8)'; ctx.lineWidth = 1.5;
+    ctx.stroke();
+    if (pid === holder) {  // chalk circle: who has the ball
+      ctx.strokeStyle = CHALK; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(ftx(x), fty(y), 1.3 * sc, 0, 2 * Math.PI); ctx.stroke();
     }
     ctx.fillStyle = '#ffffff';
     ctx.fillText(S.names[pid]?.jersey ?? '', ftx(x), fty(y) + 0.5);
@@ -225,9 +274,10 @@ function drawPlayers(ctx, S) {
 }
 
 function drawMatchups(ctx, S) {
+  if (S.view !== 'offdef') return;
   const f = cur(); if (!f || !S.pos) return;
   const pairs = S.matchupsByIdx.get(f.idx); if (!pairs) return;
-  ctx.strokeStyle = 'rgba(139,150,165,0.4)'; ctx.lineWidth = 1.25; ctx.setLineDash([5, 5]);
+  ctx.strokeStyle = 'rgba(152,147,138,0.45)'; ctx.lineWidth = 1.25; ctx.setLineDash([5, 5]);
   for (const [o, d] of pairs) {
     const a = S.pos.get(o), b = S.pos.get(d);
     if (!a || !b) continue;
@@ -238,39 +288,33 @@ function drawMatchups(ctx, S) {
 
 function drawBall(ctx, S) {
   const i = Math.floor(S.frame), TRAIL = 25, sc = S.cam.scale;
-  // fading, tapering trail
-  let prev = null;
   for (let j = Math.max(1, i - TRAIL); j <= i; j++) {
     const a = S.data.frames[j - 1]?.ball, b = S.data.frames[j].ball;
-    if (!a || !b) { prev = null; continue; }
+    if (!a || !b) continue;
     const t = (j - (i - TRAIL)) / TRAIL;
-    ctx.strokeStyle = BALL; ctx.globalAlpha = 0.65 * t; ctx.lineWidth = 1 + 2.2 * t;
+    ctx.strokeStyle = ACCENT; ctx.globalAlpha = 0.55 * t; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(ftx(a[0]), fty(a[1])); ctx.lineTo(ftx(b[0]), fty(b[1])); ctx.stroke();
   }
   ctx.globalAlpha = 1;
   const b = cur()?.ball; if (!b) return;
-  const r = (0.55 + b[2] / 22) * sc;
-  const g = ctx.createRadialGradient(ftx(b[0]) - r / 3, fty(b[1]) - r / 3, r / 6, ftx(b[0]), fty(b[1]), r);
-  g.addColorStop(0, '#ffb067'); g.addColorStop(1, BALL);
-  ctx.save();
-  ctx.shadowColor = 'rgba(245,135,26,0.55)'; ctx.shadowBlur = 12;
-  ctx.beginPath(); ctx.arc(ftx(b[0]), fty(b[1]), r, 0, 2 * Math.PI);
-  ctx.fillStyle = g; ctx.fill();
-  ctx.restore();
+  ctx.beginPath();
+  ctx.arc(ftx(b[0]), fty(b[1]), (0.55 + b[2] / 22) * sc, 0, 2 * Math.PI);
+  ctx.fillStyle = ACCENT; ctx.fill();
+  ctx.strokeStyle = '#17191d'; ctx.lineWidth = 1; ctx.stroke();
 }
 
 const whoShort = pid => S.names[pid] ? `${S.names[pid].name} #${S.names[pid].jersey}` : pid;
 
-function labelPill(ctx, x, y, text, color) {
-  ctx.font = '600 12.5px system-ui';
-  const w = ctx.measureText(text).width + 26, h = 22, r = 11;
-  ctx.beginPath(); ctx.roundRect(x, y - h / 2, w, h, r);
-  ctx.fillStyle = 'rgba(15,18,24,0.92)'; ctx.fill();
-  ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.stroke();
-  ctx.beginPath(); ctx.arc(x + 12, y, 3.5, 0, 2 * Math.PI);
-  ctx.fillStyle = color; ctx.fill();
-  ctx.fillStyle = '#e7ecf3'; ctx.textBaseline = 'middle';
-  ctx.fillText(text, x + 20, y + 0.5);
+function labelPill(ctx, x, y, text, dashed) {
+  ctx.font = `600 12px ui-monospace, Menlo, monospace`;
+  const w = ctx.measureText(text).width + 18, h = 21;
+  ctx.beginPath(); ctx.roundRect(x, y - h / 2, w, h, 4);
+  ctx.fillStyle = 'rgba(23,25,29,0.92)'; ctx.fill();
+  ctx.strokeStyle = ACCENT; ctx.lineWidth = 1;
+  if (dashed) ctx.setLineDash([3, 3]);
+  ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = CHALK; ctx.textBaseline = 'middle';
+  ctx.fillText(text, x + 9, y + 0.5);
   ctx.textBaseline = 'alphabetic';
 }
 
@@ -280,22 +324,23 @@ function drawActions(ctx, S) {
   for (const act of S.actions) {
     if (f.idx < act.start_idx || f.idx > act.end_idx) continue;
     const p = S.pos.get(act.p1); if (!p) continue;
-    const color = ACTION_COLORS[act.type] || '#ffffff';
+    const quiet = act.confidence < CONF_BAR;
     const t = Math.min(1, (Math.floor(S.frame) - act._startPos) / POP);
     const ease = 1 - (1 - t) ** 3;
-    ctx.globalAlpha = 0.25 + 0.75 * ease;
-    ctx.strokeStyle = color; ctx.lineWidth = 2.5;
+    ctx.globalAlpha = 0.3 + 0.7 * ease;
+    ctx.strokeStyle = ACCENT; ctx.lineWidth = 2.25;
+    if (quiet) ctx.setLineDash([4, 4]);
     ctx.beginPath();
-    ctx.arc(ftx(p.x), fty(p.y), (1.55 + 1.6 * (1 - ease)) * sc, 0, 2 * Math.PI);
-    ctx.stroke();
-    labelPill(ctx, ftx(p.x) + 1.9 * sc, fty(p.y) - 1.9 * sc - 6 * (1 - ease),
-      `${act.type} · ${whoShort(act.p1)}`, color);
+    ctx.arc(ftx(p.x), fty(p.y), (1.6 + 1.5 * (1 - ease)) * sc, 0, 2 * Math.PI);
+    ctx.stroke(); ctx.setLineDash([]);
+    labelPill(ctx, ftx(p.x) + 2.0 * sc, fty(p.y) - 2.0 * sc - 5 * (1 - ease),
+      `${act.type.toUpperCase()} ${whoShort(act.p1)}`, quiet);
     ctx.globalAlpha = 1;
   }
 }
 
-// ---- render loop --------------------------------------------------------
-const canvas = document.getElementById('court'), ctx = canvas.getContext('2d');
+// ---- render loop ---------------------------------------------------------
+const canvas = $('court'), ctx = canvas.getContext('2d');
 const FPS = 25;
 let lastT = null;
 
@@ -303,20 +348,20 @@ function render() {
   ctx.clearRect(0, 0, W, H);
   updateCam();
   S.pos = S.data ? computePos() : null;
-  for (const l of LAYERS) if (l.on && (S.data || l.id === 'court')) l.draw(ctx, S);
+  for (const l of LAYERS) if (S.data || l.id === 'court') l.draw(ctx, S);
   const f = cur();
   if (f) {
     const mm = String(Math.floor(f.game_clock / 60)).padStart(2, '0');
     const ss = (f.game_clock % 60).toFixed(1).padStart(4, '0');
     $('clock').textContent =
-      `Q${f.quarter} ${mm}:${ss}` + (f.shot_clock != null ? ` · sc ${f.shot_clock.toFixed(1)}` : '');
+      `Q${f.quarter} ${mm}:${ss}` + (f.shot_clock != null ? `  sc ${f.shot_clock.toFixed(1)}` : '');
     $('scrub').value = Math.floor(S.frame);
-    for (const c of S.chipEls || []) {
-      const active = f.idx >= c.act.start_idx && f.idx <= c.act.end_idx;
-      if (active === c.wasActive) continue;
-      c.wasActive = active;
-      c.el.classList.toggle('active', active);
-      c.el.style.background = active ? c.color : '';
+    for (const c of S.callEls || []) {
+      const live = f.idx >= c.act.start_idx && f.idx <= c.act.end_idx;
+      if (live === c.wasLive) continue;
+      c.wasLive = live;
+      c.el.classList.toggle('live', live);
+      if (live) c.el.scrollIntoView({ block: 'nearest' });
     }
     updateRoster(f);
   }
@@ -349,10 +394,12 @@ function tick(t) {
   requestAnimationFrame(tick);
 }
 
-// ---- controls ------------------------------------------------------------
-const $ = id => document.getElementById(id);
-
-function setPlaying(p) { S.playing = p; $('play').textContent = p ? '⏸' : '▶'; }
+// ---- controls --------------------------------------------------------------
+function setPlaying(p) {
+  S.playing = p;
+  $('play').textContent = p ? '⏸' : '▶';
+  $('play').classList.toggle('on', p);
+}
 
 $('play').onclick = () => {
   if (!S.data) return;
@@ -363,13 +410,17 @@ $('scrub').oninput = e => { setPlaying(false); S.frame = +e.target.value; };
 $('speed').onchange = e => { S.speed = +e.target.value; };
 $('prev').onclick = () => stepEvent(-1);
 $('next').onclick = () => stepEvent(1);
+for (const b of document.querySelectorAll('#viewseg button')) {
+  b.onclick = () => {
+    S.view = b.dataset.v;
+    for (const x of document.querySelectorAll('#viewseg button')) x.classList.toggle('on', x === b);
+  };
+}
 
 function stepEvent(d) {
-  const sel = $('event');
-  const i = sel.selectedIndex + d;
-  if (i < 0 || i >= sel.options.length) return;
-  sel.selectedIndex = i;
-  loadEvent();
+  const i = S.events.findIndex(e => e.event_id === S.currentId) + d;
+  if (i < 0 || i >= S.events.length) return;
+  selectEvent(S.events[i].event_id);
 }
 
 document.addEventListener('keydown', e => {
@@ -379,20 +430,63 @@ document.addEventListener('keydown', e => {
   else if (e.code === 'ArrowLeft') { setPlaying(false); S.frame = Math.max(0, S.frame - (e.shiftKey ? 10 : 1)); }
 });
 
-for (const l of LAYERS) {
-  const label = document.createElement('label');
-  label.className = 'toggle';
-  const cb = document.createElement('input');
-  cb.type = 'checkbox'; cb.checked = l.on;
-  cb.onchange = () => { l.on = cb.checked; };
-  label.append(cb, ' ' + l.label);
-  $('layers').append(label);
+// ---- possession list ---------------------------------------------------------
+const clockStr = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
+const TYPE_ABBR = { screen: 'S', drive: 'D', cut: 'C', handoff: 'H' };
+
+function sortedEvents() {
+  const evs = [...S.events];
+  if (S.sort === 'conf') {
+    evs.sort((a, b) => (b.max_conf ?? -1) - (a.max_conf ?? -1) || (b.n_actions - a.n_actions));
+  }
+  return evs;
 }
 
-async function loadEvent() {
-  const g = $('game').value, e = $('event').value;
-  if (!g || !e) return;
-  S.data = await (await fetch(`/api/games/${g}/events/${e}`)).json();
+function renderPossList() {
+  const list = $('posslist');
+  list.innerHTML = '';
+  for (const e of sortedEvents()) {
+    const div = document.createElement('div');
+    div.className = 'row' + (e.event_id === S.currentId ? ' on' : '');
+    const tags = (e.action_types || []).map(t => TYPE_ABBR[t] || '·').join(' ');
+    div.innerHTML =
+      `<div class="t">#${String(e.event_id).padStart(3, ' ')} Q${e.quarter} ${clockStr(e.start_clock)}–${clockStr(e.end_clock)}` +
+      `<span class="tags">${tags}</span></div>` +
+      `<div class="d">${e.desc || '—'}</div>`;
+    div.onclick = () => selectEvent(e.event_id);
+    list.append(div);
+  }
+}
+
+function renderCalls() {
+  const box = $('calls');
+  box.innerHTML = '';
+  S.callEls = [];
+  if (!S.actions.length) {
+    box.innerHTML = `<div class="empty"><div class="h">No calls.</div>` +
+      `<div class="s">Nothing in this possession cleared the confidence bar.</div></div>`;
+    return;
+  }
+  for (const act of [...S.actions].sort((a, b) => a.start_idx - b.start_idx)) {
+    const div = document.createElement('div');
+    const quiet = act.confidence < CONF_BAR;
+    div.className = 'call' + (quiet ? ' dim' : '');
+    div.title = `confidence ${act.confidence.toFixed(2)}`;
+    const gc = act.gc_start;
+    div.innerHTML =
+      `<span class="when">${clockStr(gc)}</span><div class="k">${act.type.toUpperCase()}</div>` +
+      `<div class="who">${whoShort(act.p1)}${act.p2 != null ? ' → ' + whoShort(act.p2) : ''}</div>`;
+    div.onclick = () => { setPlaying(false); S.frame = act._startPos; };
+    box.append(div);
+    S.callEls.push({ el: div, act, wasLive: false });
+  }
+}
+
+// ---- data loading --------------------------------------------------------
+async function selectEvent(eventId) {
+  const g = $('game').value;
+  S.currentId = eventId;
+  S.data = await (await fetch(`/api/games/${g}/events/${eventId}`)).json();
   const gm = S.data.game;
   S.homeColor = TEAM_COLORS[gm.home_abbr] ?? FALLBACK[0];
   S.visitorColor = TEAM_COLORS[gm.visitor_abbr] ?? FALLBACK[1];
@@ -405,60 +499,54 @@ async function loadEvent() {
   S.actions = S.data.actions;
   S.names = S.data.players;
   S.frame = 0; setPlaying(false); S.rosterKey = '';
-  const meta = S.eventsMeta?.get(e);
-  $('pbp').innerHTML = (meta?.desc ? `<b>PBP</b> — ${meta.desc}` : '<b>PBP</b> — no logged entry for this segment') +
-    `<a href="https://www.nba.com/stats/events?GameID=${g}&GameEventID=${e}&Season=2015-16&flag=1" target="_blank">Watch clip ↗</a>`;
+  const meta = S.events.find(e => e.event_id === eventId);
+  $('posslabel').textContent = `#${eventId} Q${meta.quarter} ${clockStr(meta.start_clock)}–${clockStr(meta.end_clock)}`;
+  $('pbp').innerHTML = (meta.desc ? `<b>PBP</b> — ${meta.desc}` : '<b>PBP</b> — no logged entry for this segment') +
+    `<a href="https://www.nba.com/stats/events?GameID=${g}&GameEventID=${eventId}&Season=2015-16&flag=1" target="_blank">Watch clip ↗</a>`;
   const total = S.data.frames.length;
   for (const act of S.actions) {
     act._startPos = Math.max(0, S.data.frames.findIndex(f => f.idx >= act.start_idx));
     act._endPos = Math.max(act._startPos, S.data.frames.findIndex(f => f.idx >= act.end_idx));
   }
-  const chips = $('chips'), ticks = $('ticks');
-  chips.innerHTML = ''; ticks.innerHTML = '';
-  S.chipEls = [];
+  const ticks = $('ticks');
+  ticks.innerHTML = '';
   for (const act of S.actions) {
-    const color = ACTION_COLORS[act.type] || '#444';
-    const seek = () => { setPlaying(false); S.frame = act._startPos; };
-    const b = document.createElement('button');
-    b.innerHTML = `<span class="dot" style="background:${color}"></span>` +
-      `${act.type} ${whoShort(act.p1)}${act.p2 != null ? ' → ' + whoShort(act.p2) : ''} · ${act.confidence}`;
-    b.style.borderColor = color;
-    b.onclick = seek;
-    chips.append(b);
-    S.chipEls.push({ el: b, act, color, wasActive: false });
     const tk = document.createElement('div');
     tk.className = 'tick';
-    tk.style.background = color;
+    tk.style.opacity = 0.35 + 0.65 * act.confidence;
     tk.style.left = `${(100 * act._startPos / Math.max(1, total - 1)).toFixed(2)}%`;
-    tk.title = b.textContent;
-    tk.onclick = seek;
+    tk.title = `${act.type} · confidence ${act.confidence.toFixed(2)}`;
+    tk.onclick = () => { setPlaying(false); S.frame = act._startPos; };
     ticks.append(tk);
   }
   $('scrub').max = total - 1;
+  renderPossList();
+  renderCalls();
 }
 
-const MIN_FRAMES = 75;  // hide <3s fragment events (FTs, subs, replay reviews)
+const MIN_FRAMES = 75;  // hide <3s fragments (FTs, subs, replay reviews)
 
-async function loadEvents() {
+async function loadGame() {
   const g = $('game').value;
-  const evs = (await (await fetch(`/api/games/${g}/events`)).json())
+  S.events = (await (await fetch(`/api/games/${g}/events`)).json())
     .filter(e => e.n_moments >= MIN_FRAMES);
-  S.eventsMeta = new Map(evs.map(e => [String(e.event_id), e]));
-  $('event').innerHTML = evs.map(e => {
-    const c = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
-    const d = e.desc ? ` — ${e.desc.slice(0, 60)}` : '';
-    return `<option value="${e.event_id}">#${e.event_id} Q${e.quarter} ${c(e.start_clock)}→${c(e.end_clock)}${d}</option>`;
-  }).join('');
-  await loadEvent();
+  if (S.events.length) await selectEvent(sortedEvents()[0].event_id);
+}
+
+for (const b of document.querySelectorAll('.sort button')) {
+  b.onclick = () => {
+    S.sort = b.dataset.s;
+    for (const x of document.querySelectorAll('.sort button')) x.classList.toggle('on', x === b);
+    renderPossList();
+  };
 }
 
 async function init() {
   const games = await (await fetch('/api/games')).json();
   $('game').innerHTML = games.map(g =>
     `<option value="${g.game_id}">${g.date} ${g.visitor_abbr} @ ${g.home_abbr}</option>`).join('');
-  $('game').onchange = loadEvents;
-  $('event').onchange = loadEvent;
-  if (games.length) await loadEvents();
+  $('game').onchange = loadGame;
+  if (games.length) await loadGame();
   requestAnimationFrame(tick);
 }
 init();
