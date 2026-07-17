@@ -568,10 +568,12 @@ def classify_coverage(
 
 
 def detect_game(
-    game_id: str, parquet_dir: Path = PARQUET_DIR
+    game_id: str, parquet_dir: Path = PARQUET_DIR, moments: pl.DataFrame | None = None
 ) -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFrame]:
-    """Run M2+M3 detection over every event. Returns (matchups_df, actions_df, coverages_df)."""
-    m = load_moments(game_id, parquet_dir)
+    """Run M2+M3 detection over every event. Returns (matchups_df, actions_df, coverages_df).
+
+    `moments` overrides the on-disk table (robustness.py injects perturbed tracks)."""
+    m = load_moments(game_id, parquet_dir) if moments is None else moments
     match_rows: list[dict] = []
     action_rows: list[dict] = []
     coverage_rows: list[dict] = []
