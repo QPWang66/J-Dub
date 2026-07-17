@@ -10,7 +10,7 @@ app = typer.Typer(no_args_is_help=True, add_completion=False)
 
 
 @app.command()
-def download(name: str = "01.01.2016.CHA.at.TOR") -> None:
+def download(name: str = typer.Argument("01.01.2016.CHA.at.TOR")) -> None:
     """Download one game from the SportVU mirror (e.g. '01.01.2016.CHA.at.TOR')."""
     from jdub.data import download_game
 

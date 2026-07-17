@@ -1,4 +1,6 @@
 .DS_Store
+PRD.md
+CLAUDE.md
 .venv/
 __pycache__/
 *.pyc
