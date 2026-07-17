@@ -5,117 +5,139 @@
 <title>jdub studio</title>
 <style>
   :root {
-    --bg: #1b1e22; --panel: #22262b; --border: #32373d;
+    --bg: #17191d; --card: #1e2126; --border: #33373e;
     --ink: #e9e7e2; --ink-2: #98938a; --accent: #e8622d;
+    --good: #7dc383; --warn: #d9a848;
     --sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
     --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   }
   * { box-sizing: border-box; }
-  body { font-family: var(--sans); background: var(--bg); color: var(--ink); margin: 0; padding: 16px 20px; font-size: 14px; }
-  .mono { font-family: var(--mono); }
+  body { font-family: var(--sans); background: var(--bg); color: var(--ink); margin: 0;
+         display: flex; justify-content: center; padding: 18px; font-size: 14px; }
+  #card { width: min(1240px, 100%); background: var(--card); border: 1px solid var(--border);
+          border-radius: 14px; padding: 18px 22px 14px; }
 
-  /* -- top bars -- */
-  .bar { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
-  #wordmark { font-weight: 700; font-size: 16px; margin-right: 8px; }
-  #wordmark span { color: var(--ink-2); font-weight: 400; }
+  /* -- header -- */
+  header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  #logo { display: flex; align-items: center; gap: 9px; margin-right: 10px; }
+  #logo svg { display: block; }
+  #logo .wm { font-size: 18px; font-weight: 800; letter-spacing: -0.01em; }
+  #logo .wm span { color: var(--ink-2); font-weight: 300; }
   select, button {
-    background: var(--panel); color: var(--ink); border: 1px solid var(--border);
-    border-radius: 6px; padding: 5px 11px; font-size: 13px; font-family: inherit; cursor: pointer;
+    background: transparent; color: var(--ink); border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 12px; font-size: 13px; font-family: inherit; cursor: pointer;
   }
-  select:hover, button:hover { border-color: #454c55; }
-  #posslabel { font-family: var(--mono); font-size: 13px; color: var(--ink-2); }
-  #play { width: 38px; font-weight: 700; }
-  #play.on { background: var(--accent); border-color: var(--accent); color: #16110d; }
-  #scrubwrap { flex: 1; min-width: 200px; }
-  #scrub { width: 100%; margin: 0; accent-color: var(--accent); }
-  #ticks { position: relative; height: 7px; margin-top: 2px; }
-  .tick { position: absolute; width: 4px; height: 7px; border-radius: 1px; cursor: pointer; background: var(--accent); }
-  #clock { font-family: var(--mono); font-size: 13px; color: var(--ink); min-width: 150px; text-align: right; }
-  .seg { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
-  .seg button { border: 0; border-radius: 0; padding: 5px 10px; font-size: 12.5px; color: var(--ink-2); background: transparent; }
-  .seg button.on { background: var(--panel); color: var(--ink); }
-  .toggle { font-size: 12.5px; color: var(--ink-2); user-select: none; white-space: nowrap; }
-  .toggle input { accent-color: var(--accent); margin-right: 3px; }
+  select:hover, button:hover { border-color: #4a5058; }
+  #poss { max-width: 340px; }
+  #status { margin-left: auto; font-family: var(--mono); font-size: 13.5px; color: var(--ink-2); white-space: nowrap; }
+  #status b { color: var(--ink); font-weight: 600; }
 
-  /* -- main grid -- */
-  main { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 14px; align-items: start; }
-  canvas { background: #17191d; border: 1px solid var(--border); border-radius: 10px; display: block;
-           width: min(100%, calc((100vh - 250px) * 1.842)); height: auto; }
-  #pbp { color: var(--ink-2); font-size: 13px; margin-top: 10px; min-height: 18px; }
-  #pbp b { color: var(--ink); font-weight: 600; }
-  #pbp a { color: var(--accent); text-decoration: none; margin-left: 12px; }
+  /* -- court -- */
+  canvas { display: block; width: 100%; height: auto; background: #17191d;
+           border: 1px solid var(--border); border-radius: 10px; }
+
+  /* -- transport -- */
+  #transport { display: flex; align-items: center; gap: 12px; margin: 12px 0 10px; }
+  #play { width: 40px; height: 32px; font-weight: 700; }
+  #play.on { background: var(--accent); border-color: var(--accent); color: #16110d; }
+  #scrubwrap { flex: 1; }
+  #scrub { width: 100%; margin: 0; accent-color: var(--accent); display: block; }
+  #ticks { position: relative; height: 7px; margin-top: 3px; }
+  .tick { position: absolute; width: 4px; height: 7px; border-radius: 1px; cursor: pointer; background: var(--accent); }
+  #ptime { font-family: var(--mono); font-size: 14px; min-width: 118px; text-align: right; }
+  #gclock { font-family: var(--mono); font-size: 12px; color: var(--ink-2); min-width: 132px; }
+
+  /* -- layer chips -- */
+  #chips { display: flex; gap: 8px; margin-bottom: 12px; }
+  #chips button { border-radius: 999px; padding: 5px 15px; font-size: 13px; color: var(--ink-2); }
+  #chips button.on { background: var(--accent); border-color: var(--accent); color: #16110d; font-weight: 600; }
+
+  /* -- calls stream -- */
+  #stream { border-top: 1px solid var(--border); }
+  #stream-head { display: flex; align-items: center; padding: 9px 2px 4px; }
+  #stream-head .h { font-size: 11px; letter-spacing: .14em; color: var(--ink-2); font-weight: 600; }
+  #stream-head .sort { margin-left: auto; display: flex; gap: 2px; }
+  #stream-head .sort button { border: 0; background: transparent; font-family: var(--mono); font-size: 11px;
+                              letter-spacing: .08em; color: var(--ink-2); padding: 2px 7px; }
+  #stream-head .sort button.on { color: var(--accent); }
+  #calls { font-family: var(--mono); font-size: 13.5px; max-height: 172px; overflow-y: auto; }
+  .call { display: flex; gap: 14px; padding: 6px 10px; border-radius: 6px; cursor: pointer; align-items: baseline; }
+  .call:hover { background: rgba(233,231,226,.04); }
+  .call.live { background: rgba(232,98,45,.1); }
+  .call .ts { color: var(--accent); }
+  .call .k { width: 78px; color: var(--ink); }
+  .call .who { color: var(--ink); flex: 1; font-family: var(--sans); }
+  .call.dim .who, .call.dim .k { color: var(--ink-2); }
+  .call.dim .who { text-decoration: underline dotted rgba(152,147,138,.7); text-underline-offset: 3px; }
+  .call .cf { min-width: 34px; text-align: right; }
+  .call .cf.hi { color: var(--good); }
+  .call .cf.lo { color: var(--warn); }
+  .empty { padding: 22px; text-align: center; color: var(--ink-2); }
+  .empty .h { color: var(--ink); font-size: 13.5px; margin-bottom: 3px; }
+  .empty .s { font-size: 12px; }
+
+  /* -- footer: pbp + roster -- */
+  footer { border-top: 1px solid var(--border); margin-top: 6px; padding: 12px 2px 2px; }
+  #pbp { font-size: 15px; }
+  #pbp b { color: var(--ink-2); font-weight: 600; font-size: 11px; letter-spacing: .14em; margin-right: 8px; }
+  #pbp a { color: var(--accent); text-decoration: none; margin-left: 12px; font-size: 13px; }
   #pbp a:hover { text-decoration: underline; }
-  #roster { display: flex; gap: 26px; font-size: 12.5px; margin-top: 8px; flex-wrap: wrap; }
+  #roster { display: flex; gap: 26px; font-size: 12.5px; margin-top: 9px; flex-wrap: wrap; }
   #roster .team b { margin-right: 8px; }
   #roster span.p { margin-right: 10px; white-space: nowrap; color: var(--ink-2); }
   #roster span.p em { font-style: normal; font-family: var(--mono); color: var(--ink); }
-
-  /* -- side panels -- */
-  aside { display: flex; flex-direction: column; gap: 14px; max-height: calc(100vh - 150px); }
-  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; display: flex; flex-direction: column; min-height: 120px; }
-  .panel h2 { font-size: 11px; letter-spacing: .14em; color: var(--ink-2); font-weight: 600; margin: 0;
-              padding: 10px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; }
-  .panel h2 .sort { margin-left: auto; display: flex; gap: 2px; }
-  .panel h2 .sort button { border: 0; background: transparent; color: var(--ink-2); font-size: 11px; letter-spacing: .08em; padding: 0 6px; }
-  .panel h2 .sort button.on { color: var(--accent); }
-  #posslist { overflow-y: auto; flex: 1.3; }
-  #calls { overflow-y: auto; flex: 1; }
-  .row { padding: 8px 12px; border-bottom: 1px solid rgba(50,55,61,.55); cursor: pointer; border-left: 2px solid transparent; }
-  .row:hover { background: rgba(233,231,226,.03); }
-  .row.on { border-left-color: var(--accent); background: rgba(232,98,45,.07); }
-  .row .t { font-family: var(--mono); font-size: 12px; color: var(--ink); }
-  .row .d { font-size: 12px; color: var(--ink-2); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .row .tags { float: right; font-family: var(--mono); font-size: 10.5px; color: var(--ink-2); letter-spacing: .08em; }
-  .call { padding: 9px 12px; border-bottom: 1px solid rgba(50,55,61,.55); cursor: pointer; border-left: 2px solid transparent; }
-  .call:hover { background: rgba(233,231,226,.03); }
-  .call.live { border-left-color: var(--accent); background: rgba(232,98,45,.07); }
-  .call .k { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; color: var(--ink-2); }
-  .call .who { font-size: 13px; margin-top: 1px; }
-  .call .when { font-family: var(--mono); font-size: 11px; color: var(--ink-2); float: right; }
-  .call.dim .who { color: var(--ink-2); text-decoration: underline dotted rgba(152,147,138,.7); text-underline-offset: 3px; }
-  .empty { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; color: var(--ink-2); padding: 18px; text-align: center; }
-  .empty .h { font-size: 13.5px; color: var(--ink); margin-bottom: 4px; }
-  .empty .s { font-size: 12px; }
 </style>
 </head>
 <body>
-<div class="bar">
-  <div id="wordmark">jdub <span>studio</span></div>
+<div id="card">
+<header>
+  <div id="logo">
+    <svg width="26" height="26" viewBox="0 0 26 26">
+      <circle cx="13" cy="13" r="11.5" fill="none" stroke="#e8622d" stroke-width="2"/>
+      <path d="M13 1.5 v23 M1.5 13 h23 M4.8 4.8 q5 5.5 0 16.4 M21.2 4.8 q-5 5.5 0 16.4"
+            fill="none" stroke="#e8622d" stroke-width="1.6"/>
+    </svg>
+    <div class="wm">jdub <span>studio</span></div>
+  </div>
   <select id="game"></select>
-  <span id="posslabel"></span>
-</div>
-<div class="bar">
-  <button id="play" title="Space">▶</button>
-  <select id="speed"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option></select>
+  <select id="poss"></select>
   <button id="prev" title="Previous possession">‹</button>
   <button id="next" title="Next possession">›</button>
+  <div id="status"></div>
+</header>
+
+<canvas id="court" width="1400" height="760"></canvas>
+
+<div id="transport">
+  <button id="play" title="Space">▶</button>
+  <select id="speed"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option></select>
+  <span id="gclock"></span>
   <div id="scrubwrap">
     <input type="range" id="scrub" min="0" max="0" value="0">
     <div id="ticks"></div>
   </div>
-  <span id="clock"></span>
-  <div class="seg" id="viewseg">
-    <button data-v="all" class="on">All</button><button data-v="off">Offense</button><button data-v="offdef">Off+Def</button>
-  </div>
-  <label class="toggle"><input type="checkbox" id="follow"> Follow</label>
+  <span id="ptime"></span>
 </div>
-<main>
-  <section id="stage">
-    <canvas id="court" width="1400" height="760"></canvas>
-    <div id="pbp"></div>
-    <div id="roster"></div>
-  </section>
-  <aside>
-    <div class="panel">
-      <h2>POSSESSIONS<span class="sort"><button data-s="time" class="on">TIME</button><button data-s="conf">CALLS</button></span></h2>
-      <div id="posslist"></div>
-    </div>
-    <div class="panel">
-      <h2>CALLS</h2>
-      <div id="calls"></div>
-    </div>
-  </aside>
-</main>
+
+<div id="chips">
+  <button data-l="matchups">Matchups</button>
+  <button data-l="actions" class="on">Actions</button>
+  <button data-l="trail" class="on">Ball trail</button>
+</div>
+
+<div id="stream">
+  <div id="stream-head">
+    <span class="h">CALLS</span>
+    <span class="sort"><button data-s="time" class="on">TIME</button><button data-s="conf">CONF</button></span>
+  </div>
+  <div id="calls"></div>
+</div>
+
+<footer>
+  <div id="pbp"></div>
+  <div id="roster"></div>
+</footer>
+</div>
 
 <script>
 // ---- palette: validated per-game team pairs; one accent (marker orange) -----
@@ -126,69 +148,48 @@ const TEAM_COLORS = {
 const FALLBACK = ['#E05A50', '#3D8FD1'];
 const ACCENT = '#e8622d';
 const CHALK = '#e9e7e2';
-const COURT = { floor: '#212429', line: '#4d5560', paint: 'rgba(233,231,226,0.03)' };
+const COURT = { floor: '#1e2126', line: '#4d5560', paint: 'rgba(233,231,226,0.03)' };
 const CONF_BAR = 0.7;  // below this a call is typographically "quiet"
 
-// ---- camera ------------------------------------------------------------------
+// ---- fixed full-court camera -------------------------------------------------
 const W = 1400, H = 760, PAD = 34;
-const FULL_SCALE = Math.min((W - 2 * PAD) / 94, (H - 2 * PAD) / 50);
-const FOLLOW_SCALE = 21;
+const SC = Math.min((W - 2 * PAD) / 94, (H - 2 * PAD) / 50);
+const OX = PAD + (W - 2 * PAD - 94 * SC) / 2, OY = PAD + (H - 2 * PAD - 50 * SC) / 2;
+const ftx = x => OX + x * SC;
+const fty = y => OY + y * SC;
+
 const S = {
-  data: null, frame: 0, playing: false, speed: 1, view: 'all',
-  cam: { scale: FULL_SCALE, ox: PAD + (W - 2 * PAD - 94 * FULL_SCALE) / 2, oy: PAD + (H - 2 * PAD - 50 * FULL_SCALE) / 2 },
+  data: null, frame: 0, playing: false, speed: 1,
+  layers: { matchups: false, actions: true, trail: true },
   homeColor: FALLBACK[0], visitorColor: FALLBACK[1],
   events: [], sort: 'time', currentId: null,
 };
 const $ = id => document.getElementById(id);
-const ftx = x => S.cam.ox + x * S.cam.scale;
-const fty = y => S.cam.oy + y * S.cam.scale;
 const cur = () => S.data ? S.data.frames[Math.floor(S.frame)] : null;
 
-function camTarget() {
-  const f = cur();
-  if (!$('follow').checked || !f || !f.ball) {
-    const scale = FULL_SCALE;
-    return { scale, ox: PAD + (W - 2 * PAD - 94 * scale) / 2, oy: PAD + (H - 2 * PAD - 50 * scale) / 2 };
-  }
-  const scale = FOLLOW_SCALE;
-  const vw = W / scale, vh = H / scale;
-  const cx = Math.max(vw / 2 - 3, Math.min(97 - vw / 2, f.ball[0]));
-  const cy = Math.max(vh / 2 - 3, Math.min(53 - vh / 2, f.ball[1]));
-  return { scale, ox: W / 2 - cx * scale, oy: H / 2 - cy * scale };
-}
-
-function updateCam() {
-  const t = camTarget(), k = 0.08;
-  S.cam.scale += (t.scale - S.cam.scale) * k;
-  S.cam.ox += (t.ox - S.cam.ox) * k;
-  S.cam.oy += (t.oy - S.cam.oy) * k;
-}
-
-// ---- scene layers (internal registry; milestones append here — M3 coverage,
-// M4 fact-linked highlights. Visibility is driven by the view mode, not checkboxes.)
+// ---- scene (layer registry: M3 coverage / M4 fact highlights append here) ----
 const LAYERS = [
   { id: 'court', draw: drawCourt },
-  { id: 'matchups', draw: drawMatchups },   // only in Off+Def view
+  { id: 'matchups', draw: drawMatchups },
   { id: 'players', draw: drawPlayers },
   { id: 'ball', draw: drawBall },
   { id: 'actions', draw: drawActions },
 ];
 
 function drawCourt(ctx) {
-  const sc = S.cam.scale;
   ctx.fillStyle = COURT.floor;
-  ctx.beginPath(); ctx.roundRect(ftx(0), fty(0), 94 * sc, 50 * sc, 4); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(ftx(0), fty(0), 94 * SC, 50 * SC, 4); ctx.fill();
   ctx.strokeStyle = COURT.line; ctx.lineWidth = 1.25;
-  const arc = (x, y, r, a0, a1) => { ctx.beginPath(); ctx.arc(ftx(x), fty(y), r * sc, a0, a1); ctx.stroke(); };
+  const arc = (x, y, r, a0, a1) => { ctx.beginPath(); ctx.arc(ftx(x), fty(y), r * SC, a0, a1); ctx.stroke(); };
   const line = (x0, y0, x1, y1) => { ctx.beginPath(); ctx.moveTo(ftx(x0), fty(y0)); ctx.lineTo(ftx(x1), fty(y1)); ctx.stroke(); };
-  ctx.strokeRect(ftx(0), fty(0), 94 * sc, 50 * sc);
+  ctx.strokeRect(ftx(0), fty(0), 94 * SC, 50 * SC);
   line(47, 0, 47, 50);
   arc(47, 25, 6, 0, 2 * Math.PI);
   for (const [bx, dir] of [[5.25, 1], [88.75, -1]]) {
     const base = bx - dir * 5.25;
     ctx.fillStyle = COURT.paint;
-    ctx.fillRect(ftx(Math.min(base, base + dir * 19)), fty(17), 19 * sc, 16 * sc);
-    ctx.strokeRect(ftx(Math.min(base, base + dir * 19)), fty(17), 19 * sc, 16 * sc);
+    ctx.fillRect(ftx(Math.min(base, base + dir * 19)), fty(17), 19 * SC, 16 * SC);
+    ctx.strokeRect(ftx(Math.min(base, base + dir * 19)), fty(17), 19 * SC, 16 * SC);
     arc(base + dir * 19, 25, 6, 0, 2 * Math.PI);
     line(base + dir * 4, 22, base + dir * 4, 28);
     line(base, 3, base + dir * 14, 3);
@@ -237,35 +238,23 @@ function holderPid(f) {
   return best;
 }
 
-// pids visible under the current view mode; null = show everyone
-function visiblePids(f) {
-  if (S.view === 'all') return null;
-  const pairs = S.matchupsByIdx.get(f.idx);
-  if (!pairs) return null;  // no matchup info -> fall back to all
-  const keep = new Set();
-  for (const [o, d] of pairs) { keep.add(o); if (S.view === 'offdef') keep.add(d); }
-  return keep;
-}
-
 function drawPlayers(ctx, S) {
   if (!S.pos) return;
-  const f = cur(), sc = S.cam.scale;
+  const f = cur();
   const home = S.data.game.home_team_id;
   const holder = holderPid(f);
-  const vis = visiblePids(f);
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.font = `700 ${Math.max(9, 0.62 * sc)}px ${'ui-monospace, Menlo, monospace'}`;
+  ctx.font = `700 ${Math.max(9, 0.62 * SC)}px ui-monospace, Menlo, monospace`;
   for (const [pid, { x, y, team }] of S.pos.entries()) {
-    if (vis && !vis.has(pid)) continue;
     ctx.beginPath();
-    ctx.arc(ftx(x), fty(y), 1.0 * sc, 0, 2 * Math.PI);
+    ctx.arc(ftx(x), fty(y), 1.0 * SC, 0, 2 * Math.PI);
     ctx.fillStyle = team === home ? S.homeColor : S.visitorColor;
     ctx.fill();
     ctx.strokeStyle = 'rgba(233,231,226,0.8)'; ctx.lineWidth = 1.5;
     ctx.stroke();
     if (pid === holder) {  // chalk circle: who has the ball
       ctx.strokeStyle = CHALK; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(ftx(x), fty(y), 1.3 * sc, 0, 2 * Math.PI); ctx.stroke();
+      ctx.beginPath(); ctx.arc(ftx(x), fty(y), 1.3 * SC, 0, 2 * Math.PI); ctx.stroke();
     }
     ctx.fillStyle = '#ffffff';
     ctx.fillText(S.names[pid]?.jersey ?? '', ftx(x), fty(y) + 0.5);
@@ -274,7 +263,7 @@ function drawPlayers(ctx, S) {
 }
 
 function drawMatchups(ctx, S) {
-  if (S.view !== 'offdef') return;
+  if (!S.layers.matchups) return;
   const f = cur(); if (!f || !S.pos) return;
   const pairs = S.matchupsByIdx.get(f.idx); if (!pairs) return;
   ctx.strokeStyle = 'rgba(152,147,138,0.45)'; ctx.lineWidth = 1.25; ctx.setLineDash([5, 5]);
@@ -287,18 +276,20 @@ function drawMatchups(ctx, S) {
 }
 
 function drawBall(ctx, S) {
-  const i = Math.floor(S.frame), TRAIL = 25, sc = S.cam.scale;
-  for (let j = Math.max(1, i - TRAIL); j <= i; j++) {
-    const a = S.data.frames[j - 1]?.ball, b = S.data.frames[j].ball;
-    if (!a || !b) continue;
-    const t = (j - (i - TRAIL)) / TRAIL;
-    ctx.strokeStyle = ACCENT; ctx.globalAlpha = 0.55 * t; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(ftx(a[0]), fty(a[1])); ctx.lineTo(ftx(b[0]), fty(b[1])); ctx.stroke();
+  const i = Math.floor(S.frame), TRAIL = 25;
+  if (S.layers.trail) {
+    for (let j = Math.max(1, i - TRAIL); j <= i; j++) {
+      const a = S.data.frames[j - 1]?.ball, b = S.data.frames[j].ball;
+      if (!a || !b) continue;
+      const t = (j - (i - TRAIL)) / TRAIL;
+      ctx.strokeStyle = ACCENT; ctx.globalAlpha = 0.55 * t; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(ftx(a[0]), fty(a[1])); ctx.lineTo(ftx(b[0]), fty(b[1])); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
   }
-  ctx.globalAlpha = 1;
   const b = cur()?.ball; if (!b) return;
   ctx.beginPath();
-  ctx.arc(ftx(b[0]), fty(b[1]), (0.55 + b[2] / 22) * sc, 0, 2 * Math.PI);
+  ctx.arc(ftx(b[0]), fty(b[1]), (0.55 + b[2] / 22) * SC, 0, 2 * Math.PI);
   ctx.fillStyle = ACCENT; ctx.fill();
   ctx.strokeStyle = '#17191d'; ctx.lineWidth = 1; ctx.stroke();
 }
@@ -319,8 +310,9 @@ function labelPill(ctx, x, y, text, dashed) {
 }
 
 function drawActions(ctx, S) {
+  if (!S.layers.actions) return;
   const f = cur(); if (!f || !S.pos) return;
-  const POP = 10, sc = S.cam.scale;
+  const POP = 10;
   for (const act of S.actions) {
     if (f.idx < act.start_idx || f.idx > act.end_idx) continue;
     const p = S.pos.get(act.p1); if (!p) continue;
@@ -331,30 +323,31 @@ function drawActions(ctx, S) {
     ctx.strokeStyle = ACCENT; ctx.lineWidth = 2.25;
     if (quiet) ctx.setLineDash([4, 4]);
     ctx.beginPath();
-    ctx.arc(ftx(p.x), fty(p.y), (1.6 + 1.5 * (1 - ease)) * sc, 0, 2 * Math.PI);
+    ctx.arc(ftx(p.x), fty(p.y), (1.6 + 1.5 * (1 - ease)) * SC, 0, 2 * Math.PI);
     ctx.stroke(); ctx.setLineDash([]);
-    labelPill(ctx, ftx(p.x) + 2.0 * sc, fty(p.y) - 2.0 * sc - 5 * (1 - ease),
+    labelPill(ctx, ftx(p.x) + 2.0 * SC, fty(p.y) - 2.0 * SC - 5 * (1 - ease),
       `${act.type.toUpperCase()} ${whoShort(act.p1)}`, quiet);
     ctx.globalAlpha = 1;
   }
 }
 
-// ---- render loop ---------------------------------------------------------
+// ---- render loop ----------------------------------------------------------
 const canvas = $('court'), ctx = canvas.getContext('2d');
 const FPS = 25;
 let lastT = null;
 
 function render() {
   ctx.clearRect(0, 0, W, H);
-  updateCam();
   S.pos = S.data ? computePos() : null;
   for (const l of LAYERS) if (S.data || l.id === 'court') l.draw(ctx, S);
   const f = cur();
   if (f) {
     const mm = String(Math.floor(f.game_clock / 60)).padStart(2, '0');
     const ss = (f.game_clock % 60).toFixed(1).padStart(4, '0');
-    $('clock').textContent =
-      `Q${f.quarter} ${mm}:${ss}` + (f.shot_clock != null ? `  sc ${f.shot_clock.toFixed(1)}` : '');
+    $('gclock').textContent =
+      `Q${f.quarter} ${mm}:${ss}` + (f.shot_clock != null ? ` sc${f.shot_clock.toFixed(0).padStart(3, ' ')}` : '');
+    const total = S.data.frames.length;
+    $('ptime').textContent = `${(Math.floor(S.frame) / FPS).toFixed(1)} / ${((total - 1) / FPS).toFixed(1)}s`;
     $('scrub').value = Math.floor(S.frame);
     for (const c of S.callEls || []) {
       const live = f.idx >= c.act.start_idx && f.idx <= c.act.end_idx;
@@ -394,7 +387,7 @@ function tick(t) {
   requestAnimationFrame(tick);
 }
 
-// ---- controls --------------------------------------------------------------
+// ---- controls ---------------------------------------------------------------
 function setPlaying(p) {
   S.playing = p;
   $('play').textContent = p ? '⏸' : '▶';
@@ -410,10 +403,10 @@ $('scrub').oninput = e => { setPlaying(false); S.frame = +e.target.value; };
 $('speed').onchange = e => { S.speed = +e.target.value; };
 $('prev').onclick = () => stepEvent(-1);
 $('next').onclick = () => stepEvent(1);
-for (const b of document.querySelectorAll('#viewseg button')) {
+for (const b of document.querySelectorAll('#chips button')) {
   b.onclick = () => {
-    S.view = b.dataset.v;
-    for (const x of document.querySelectorAll('#viewseg button')) x.classList.toggle('on', x === b);
+    S.layers[b.dataset.l] = !S.layers[b.dataset.l];
+    b.classList.toggle('on', S.layers[b.dataset.l]);
   };
 }
 
@@ -430,33 +423,8 @@ document.addEventListener('keydown', e => {
   else if (e.code === 'ArrowLeft') { setPlaying(false); S.frame = Math.max(0, S.frame - (e.shiftKey ? 10 : 1)); }
 });
 
-// ---- possession list ---------------------------------------------------------
+// ---- calls stream -------------------------------------------------------------
 const clockStr = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
-const TYPE_ABBR = { screen: 'S', drive: 'D', cut: 'C', handoff: 'H' };
-
-function sortedEvents() {
-  const evs = [...S.events];
-  if (S.sort === 'conf') {
-    evs.sort((a, b) => (b.max_conf ?? -1) - (a.max_conf ?? -1) || (b.n_actions - a.n_actions));
-  }
-  return evs;
-}
-
-function renderPossList() {
-  const list = $('posslist');
-  list.innerHTML = '';
-  for (const e of sortedEvents()) {
-    const div = document.createElement('div');
-    div.className = 'row' + (e.event_id === S.currentId ? ' on' : '');
-    const tags = (e.action_types || []).map(t => TYPE_ABBR[t] || '·').join(' ');
-    div.innerHTML =
-      `<div class="t">#${String(e.event_id).padStart(3, ' ')} Q${e.quarter} ${clockStr(e.start_clock)}–${clockStr(e.end_clock)}` +
-      `<span class="tags">${tags}</span></div>` +
-      `<div class="d">${e.desc || '—'}</div>`;
-    div.onclick = () => selectEvent(e.event_id);
-    list.append(div);
-  }
-}
 
 function renderCalls() {
   const box = $('calls');
@@ -467,25 +435,38 @@ function renderCalls() {
       `<div class="s">Nothing in this possession cleared the confidence bar.</div></div>`;
     return;
   }
-  for (const act of [...S.actions].sort((a, b) => a.start_idx - b.start_idx)) {
+  const acts = [...S.actions].sort(S.sort === 'conf'
+    ? (a, b) => b.confidence - a.confidence
+    : (a, b) => a.start_idx - b.start_idx);
+  for (const act of acts) {
     const div = document.createElement('div');
     const quiet = act.confidence < CONF_BAR;
     div.className = 'call' + (quiet ? ' dim' : '');
     div.title = `confidence ${act.confidence.toFixed(2)}`;
-    const gc = act.gc_start;
+    const rel = (act._startPos / FPS).toFixed(1).padStart(4, '0');
     div.innerHTML =
-      `<span class="when">${clockStr(gc)}</span><div class="k">${act.type.toUpperCase()}</div>` +
-      `<div class="who">${whoShort(act.p1)}${act.p2 != null ? ' → ' + whoShort(act.p2) : ''}</div>`;
+      `<span class="ts">${rel}</span><span class="k">${act.type}</span>` +
+      `<span class="who">${whoShort(act.p1)}${act.p2 != null ? ' → ' + whoShort(act.p2) : ''}</span>` +
+      `<span class="cf ${quiet ? 'lo' : 'hi'}">${act.confidence >= 1 ? '1.0' : '.' + String(Math.round(act.confidence * 100)).padStart(2, '0')}</span>`;
     div.onclick = () => { setPlaying(false); S.frame = act._startPos; };
     box.append(div);
     S.callEls.push({ el: div, act, wasLive: false });
   }
 }
 
-// ---- data loading --------------------------------------------------------
+for (const b of document.querySelectorAll('.sort button')) {
+  b.onclick = () => {
+    S.sort = b.dataset.s;
+    for (const x of document.querySelectorAll('.sort button')) x.classList.toggle('on', x === b);
+    renderCalls();
+  };
+}
+
+// ---- data loading ---------------------------------------------------------
 async function selectEvent(eventId) {
   const g = $('game').value;
   S.currentId = eventId;
+  $('poss').value = String(eventId);
   S.data = await (await fetch(`/api/games/${g}/events/${eventId}`)).json();
   const gm = S.data.game;
   S.homeColor = TEAM_COLORS[gm.home_abbr] ?? FALLBACK[0];
@@ -500,8 +481,8 @@ async function selectEvent(eventId) {
   S.names = S.data.players;
   S.frame = 0; setPlaying(false); S.rosterKey = '';
   const meta = S.events.find(e => e.event_id === eventId);
-  $('posslabel').textContent = `#${eventId} Q${meta.quarter} ${clockStr(meta.start_clock)}–${clockStr(meta.end_clock)}`;
-  $('pbp').innerHTML = (meta.desc ? `<b>PBP</b> — ${meta.desc}` : '<b>PBP</b> — no logged entry for this segment') +
+  $('status').innerHTML = `<b>${gm.visitor_abbr} @ ${gm.home_abbr}</b> · Q${meta.quarter} · poss #${eventId}`;
+  $('pbp').innerHTML = `<b>PBP</b>` + (meta.desc ? `${meta.desc}` : 'no logged entry for this segment') +
     `<a href="https://www.nba.com/stats/events?GameID=${g}&GameEventID=${eventId}&Season=2015-16&flag=1" target="_blank">Watch clip ↗</a>`;
   const total = S.data.frames.length;
   for (const act of S.actions) {
@@ -520,7 +501,6 @@ async function selectEvent(eventId) {
     ticks.append(tk);
   }
   $('scrub').max = total - 1;
-  renderPossList();
   renderCalls();
 }
 
@@ -530,15 +510,11 @@ async function loadGame() {
   const g = $('game').value;
   S.events = (await (await fetch(`/api/games/${g}/events`)).json())
     .filter(e => e.n_moments >= MIN_FRAMES);
-  if (S.events.length) await selectEvent(sortedEvents()[0].event_id);
-}
-
-for (const b of document.querySelectorAll('.sort button')) {
-  b.onclick = () => {
-    S.sort = b.dataset.s;
-    for (const x of document.querySelectorAll('.sort button')) x.classList.toggle('on', x === b);
-    renderPossList();
-  };
+  $('poss').innerHTML = S.events.map(e => {
+    const d = e.desc ? ` — ${e.desc.slice(0, 46)}` : '';
+    return `<option value="${e.event_id}">#${e.event_id} Q${e.quarter} ${clockStr(e.start_clock)}–${clockStr(e.end_clock)}${d}</option>`;
+  }).join('');
+  if (S.events.length) await selectEvent(S.events[0].event_id);
 }
 
 async function init() {
@@ -546,6 +522,7 @@ async function init() {
   $('game').innerHTML = games.map(g =>
     `<option value="${g.game_id}">${g.date} ${g.visitor_abbr} @ ${g.home_abbr}</option>`).join('');
   $('game').onchange = loadGame;
+  $('poss').onchange = e => selectEvent(+e.target.value);
   if (games.length) await loadGame();
   requestAnimationFrame(tick);
 }
