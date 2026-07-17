@@ -1,4 +1,4 @@
-from jdub.commentary import CONF_BAR, plan_salience, render_zh
+from jdub.commentary import CONF_BAR, plan_salience, render_text
 
 FACTS = [
     {
@@ -51,7 +51,7 @@ def test_salience_keeps_outcome_and_pairs_screen_with_coverage():
 
 
 def test_render_grounded_and_hedged():
-    sents = render_zh(FACTS)
+    sents = render_text(FACTS)
     text = " ".join(s["text"] for s in sents)
     assert "Adams选择沉退护框" in text
     assert "似乎" in text  # drive at 0.55 < CONF_BAR must be hedged
@@ -60,3 +60,12 @@ def test_render_grounded_and_hedged():
     assert sum("做掩护" in s["text"] for s in sents) == 1
     # every sentence anchors to a fact frame
     assert all(isinstance(s["start_idx"], int) and s["refs"] for s in sents)
+
+
+def test_render_english():
+    sents = render_text(FACTS, lang="en")
+    text = " ".join(s["text"] for s in sents)
+    assert "Adams chooses to drop back" in text
+    assert "It looks like" in text  # drive at 0.55 < CONF_BAR hedged
+    # screen voiced inside its coverage sentence, not duplicated
+    assert sum("screen" in s["text"] for s in sents) == 1

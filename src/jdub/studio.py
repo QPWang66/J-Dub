@@ -81,10 +81,10 @@ def event(game_id: str, event_id: int) -> dict:
 
 
 @app.get("/api/games/{game_id}/events/{event_id}/commentary")
-def commentary(game_id: str, event_id: int, llm: bool = False) -> dict:
+def commentary(game_id: str, event_id: int, llm: bool = False, lang: str = "zh") -> dict:
     from jdub.commentary import generate
 
-    return generate(game_id, event_id, llm=llm)
+    return generate(game_id, event_id, llm=llm, lang=lang)
 
 
 def _detection(game_id: str, table: str, event_id: int) -> list[dict]:

@@ -45,13 +45,25 @@ def detect(game_id: str) -> None:
 
 
 @app.command()
-def commentary(game_id: str, event_id: int, llm: bool = False) -> None:
-    """Generate grounded Chinese commentary for one possession (M4)."""
+def commentary(game_id: str, event_id: int, llm: bool = False, lang: str = "zh") -> None:
+    """Generate grounded commentary for one possession (M4). --lang zh|en."""
     from jdub.commentary import generate
 
-    result = generate(game_id, event_id, llm=llm)
+    result = generate(game_id, event_id, llm=llm, lang=lang)
     for s in result["sentences"]:
         typer.echo(f"[{s['start_idx']:>4}] {s['text']}")
+
+
+@app.command()
+def robustness(game_id: str) -> None:
+    """Noise-robustness curve (Gate 0 for the CV front-end, docs/cv-plan.md)."""
+    from jdub.robustness import curve
+
+    rows = curve(game_id)
+    cols = list(rows[0].keys())
+    typer.echo("  ".join(f"{c:>15}" for c in cols))
+    for r in rows:
+        typer.echo("  ".join(f"{r[c]:>15}" for c in cols))
 
 
 @app.command()
