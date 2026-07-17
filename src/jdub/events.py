@@ -55,6 +55,19 @@ CUT_MAX_END = 8.5  # cut must arrive at the rim area
 CUT_LOOKBACK = 75  # frames (3s)
 CUT_MIN_FRAMES = 10
 CUT_HELD_FRAC = 0.6  # a cut happens inside settled offense, not rebound/transition scrambles
+PASS_MAX_GAP = 50  # frames (2s): longest believable ball flight
+POST_MAX_HOOP = 14.0  # ft: post-up happens on the block / short mid-post
+POST_MAX_SPEED = 4.0  # ft/s: backing down, not driving through
+POST_MIN_FRAMES = 25  # ~1s of sustained post position
+ISO_SPACING = 12.0  # ft: no teammate (or their defender) this close to the handler
+ISO_MIN_FRAMES = 30  # ~1.2s
+ISO_MAX_HOOP = 30.0  # ft: iso happens in the frontcourt, not while walking it up
+ISO_GUARDED = 8.0  # ft: someone is actually on him
+OB_MIN_HOOP = 8.0  # ft: paint congestion is not an off-ball screen
+OB_MIN_FRAMES = 5
+TRANS_START_HOOP = 50.0  # ft: possession gained in the backcourt
+TRANS_END_HOOP = 30.0  # ft: pushed into the scoring area
+TRANS_MAX_FRAMES = 100  # within 4s
 
 # frame tuple: (moment_idx, game_clock, (bx, by, bz), {pid: (x, y)})
 
@@ -344,11 +357,9 @@ def detect_actions(
             seen_arrivals.update((pid, k) for k in range(j, i + 1))
             emit("cut", j, i, pid, None, decline / path)
 
-    # --- handoffs: holder passes directly to an adjacent teammate ---
+    # --- handoffs + passes: same-team possession changes, split by geometry ---
     for (p1, a1, e1), (p2, s2, e2) in zip(runs, runs[1:]):
-        if p1 == p2 or team_of[p1] != team_of[p2] or s2 - e1 > HANDOFF_MAX_GAP:
-            continue
-        if e1 - a1 < HANDOFF_MIN_RUN or e2 - s2 < HANDOFF_MIN_RUN:
+        if p1 == p2 or team_of[p1] != team_of[p2]:
             continue
         a, b = frames[e1][3].get(p1), frames[e1][3].get(p2)
         c, d = frames[s2][3].get(p1), frames[s2][3].get(p2)
@@ -356,10 +367,114 @@ def detect_actions(
             continue
         # close at release AND at receipt: a pass separates by receipt, a handoff doesn't
         if (
-            math.hypot(a[0] - b[0], a[1] - b[1]) <= HANDOFF_MAX_DIST
+            s2 - e1 <= HANDOFF_MAX_GAP
+            and e1 - a1 >= HANDOFF_MIN_RUN
+            and e2 - s2 >= HANDOFF_MIN_RUN
+            and math.hypot(a[0] - b[0], a[1] - b[1]) <= HANDOFF_MAX_DIST
             and math.hypot(c[0] - d[0], c[1] - d[1]) <= HANDOFF_MAX_DIST
         ):
             emit("handoff", e1, s2, p1, p2, 1.0 - (s2 - e1 - 1) / HANDOFF_MAX_GAP)
+        elif s2 - e1 <= PASS_MAX_GAP:
+            emit("pass", e1, s2, p1, p2, 0.9 if s2 - e1 <= 25 else 0.7)
+
+    # --- post-ups: holder parked on the block, backing down slowly ---
+    for pid, a, b in runs:
+        best_len, best_start = 0, None
+        cur_start = None
+        for i in range(a, b + 1):
+            d = d_hoop[i].get(pid)
+            ok = d is not None and d <= POST_MAX_HOOP and _speed(frames, pid, i) <= POST_MAX_SPEED
+            if ok and cur_start is None:
+                cur_start = i
+            if (not ok or i == b) and cur_start is not None:
+                end = i if ok else i - 1
+                if end - cur_start > best_len:
+                    best_len, best_start = end - cur_start, cur_start
+                cur_start = None
+        if best_start is not None and best_len >= POST_MIN_FRAMES:
+            emit("post_up", best_start, best_start + best_len, pid, None, min(1.0, best_len / 50))
+
+    # --- off-ball screens: NETS triangle applied away from the ball ---
+    ob_hits: dict[tuple[int, int], list[int]] = {}
+    ob_flags: dict[tuple[int, int], list[bool]] = {}
+    for i in range(n):
+        h, pairing = hold[i], match[i]
+        if pairing is None:
+            continue
+        pos = frames[i][3]
+        for rcv, (rx, ry) in pos.items():
+            if rcv == h or team_of[rcv] != off[i]:
+                continue
+            rd = pairing.get(rcv)
+            if rd is None or rd not in pos:
+                continue
+            dx, dy = pos[rd]
+            if math.hypot(dx - rx, dy - ry) > SCREEN_DD1:
+                continue
+            for scr, (sx, sy) in pos.items():
+                if scr in (h, rcv) or team_of[scr] != off[i]:
+                    continue
+                if math.hypot(sx - hoop[0], sy - hoop[1]) < OB_MIN_HOOP:
+                    continue  # paint congestion, not a screen
+                if (
+                    math.hypot(sx - rx, sy - ry) <= SCREEN_DA
+                    and math.hypot(sx - dx, sy - dy) <= SCREEN_DD2
+                ):
+                    key = (scr, rcv)
+                    ob_hits.setdefault(key, []).append(i)
+                    ob_flags.setdefault(key, []).append(_speed(frames, scr, i) <= SCREEN_SET_SPEED)
+    for (scr, rcv), idxs in ob_hits.items():
+        flags = ob_flags[(scr, rcv)]
+        for a, b in _intervals(idxs, max_gap=5, min_len=OB_MIN_FRAMES):
+            in_iv = [flags[k] for k, i in enumerate(idxs) if a <= i <= b]
+            set_frac = sum(in_iv) / len(in_iv) if in_iv else 0.0
+            emit("offball_screen", a, b, scr, rcv, 0.5 + 0.4 * set_frac)
+
+    # --- isolations: handler with the floor cleared around him ---
+    for pid, a, b in runs:
+        if b - a < ISO_MIN_FRAMES:
+            continue
+        clear = 0
+        for i in range(a, b + 1):
+            pos = frames[i][3]
+            if pid not in pos:
+                continue
+            px, py = pos[pid]
+            nearest_def = min(
+                (math.hypot(x - px, y - py) for q, (x, y) in pos.items() if team_of[q] != off[i]),
+                default=99.0,
+            )
+            crowd = [
+                q
+                for q, (x, y) in pos.items()
+                if q != pid and math.hypot(x - px, y - py) < ISO_SPACING
+            ]
+            dh = d_hoop[i].get(pid)
+            # frontcourt, actually guarded, and only the primary defender in the bubble
+            if (
+                dh is not None
+                and dh <= ISO_MAX_HOOP
+                and nearest_def <= ISO_GUARDED
+                and len(crowd) <= 1
+                and (not crowd or team_of[crowd[0]] != off[i])
+            ):
+                clear += 1
+            else:
+                clear = 0
+            if clear >= ISO_MIN_FRAMES:
+                emit("iso", i - clear + 1, min(b, i + 10), pid, None, min(1.0, clear / 50))
+                break
+
+    # --- transition: possession gained deep and pushed up the floor fast ---
+    for pid, a, b in runs:
+        ds = d_hoop[a].get(pid)
+        if ds is None or ds < TRANS_START_HOOP:
+            continue
+        for i in range(a, min(b + 1, a + TRANS_MAX_FRAMES)):
+            de = d_hoop[i].get(pid)
+            if de is not None and de <= TRANS_END_HOOP:
+                emit("transition", a, i, pid, None, 0.9 if i - a <= 75 else 0.7)
+                break
     return actions
 
 

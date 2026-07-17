@@ -26,9 +26,14 @@ TYPE_WEIGHT = {
     "blitz": 3.0,
     "over": 2.5,
     "under": 2.5,
+    "post_up": 2.5,
+    "offball_screen": 2.5,
+    "iso": 2.2,
     "drive": 2.0,
     "handoff": 2.0,
     "cut": 1.5,
+    "transition": 1.5,
+    "pass": 0.5,  # context, rarely the story
 }
 COVERAGE_ZH = {
     "drop": "沉退护框",
@@ -166,6 +171,16 @@ def render_zh(facts: list[dict]) -> list[dict]:
             text = _hedge(f["confidence"], f"{a['p1']}与{a['p2']}完成手递手交接。")
         elif t == "cut":
             text = _hedge(f["confidence"], f"{a['p1']}空切杀向篮下。")
+        elif t == "post_up":
+            text = _hedge(f["confidence"], f"{a['p1']}低位背身要位。")
+        elif t == "offball_screen":
+            text = _hedge(f["confidence"], f"{a['p1']}给{a['p2']}做无球掩护。")
+        elif t == "iso":
+            text = _hedge(f["confidence"], f"{a['p1']}单打,队友拉开空间。")
+        elif t == "transition":
+            text = _hedge(f["confidence"], f"{a['p1']}持球推转换。")
+        elif t == "pass":
+            text = _hedge(f["confidence"], f"{a['p1']}转移给{a['p2']}。")
         elif t == "outcome":
             text = f"回合终结:{f['desc']}"
         else:
