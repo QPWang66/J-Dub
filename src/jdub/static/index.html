@@ -4,34 +4,55 @@
 <meta charset="utf-8">
 <title>jdub studio</title>
 <style>
-  body { font-family: system-ui, sans-serif; background: #15181d; color: #ddd; margin: 0; padding: 16px; }
-  .bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
-  select, button { background: #262b33; color: #ddd; border: 1px solid #444; border-radius: 4px; padding: 4px 10px; font-size: 14px; }
+  :root {
+    --bg: #14181f; --panel: #1b212b; --border: #2a3341;
+    --ink: #e7ecf3; --ink-2: #8b96a5; --accent: #3d8fd1; --gold: #ffc24b;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: var(--bg); color: var(--ink); margin: 0; padding: 20px 24px; }
+  .bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  #wordmark { font-weight: 700; font-size: 17px; letter-spacing: .02em; margin-right: 6px; }
+  #wordmark span { color: var(--ink-2); font-weight: 400; }
+  select, button {
+    background: var(--panel); color: var(--ink); border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 12px; font-size: 13px; font-family: inherit;
+  }
+  select:hover, button:hover { border-color: #3b475a; }
   button { cursor: pointer; }
-  #event { max-width: 560px; }
-  #scrubwrap { flex: 1; min-width: 200px; }
-  #scrub { width: 100%; margin: 0; }
-  #ticks { position: relative; height: 7px; }
-  .tick { position: absolute; width: 4px; height: 7px; border-radius: 1px; cursor: pointer; }
-  canvas { background: #1e232b; border-radius: 6px; display: block; width: 100%; }
-  #clock { font-variant-numeric: tabular-nums; min-width: 130px; }
-  #layers label, .bar label { margin-right: 8px; font-size: 13px; user-select: none; white-space: nowrap; }
-  .legend { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; }
-  #chips button.active { color: #111; font-weight: 600; }
-  #pbp { color: #f6ae2d; font-size: 14px; margin: 2px 0 8px; min-height: 18px; }
-  #pbp a { color: #7fc8ff; margin-left: 12px; }
-  #roster { font-size: 13px; margin-top: 8px; line-height: 1.7; }
-  #roster b { margin-right: 6px; }
-  #roster span.p { margin-right: 12px; white-space: nowrap; }
+  #play { width: 40px; font-size: 14px; background: var(--accent); border-color: var(--accent); color: #0e1116; font-weight: 700; }
+  #event { max-width: 520px; }
+  #scrubwrap { flex: 1; min-width: 220px; }
+  #scrub { width: 100%; margin: 0; accent-color: var(--accent); }
+  #ticks { position: relative; height: 8px; margin-top: 2px; }
+  .tick { position: absolute; width: 4px; height: 8px; border-radius: 2px; cursor: pointer; }
+  canvas { background: #12161d; border: 1px solid var(--border); border-radius: 12px; display: block; width: 100%; }
+  #clock { font-variant-numeric: tabular-nums; min-width: 132px; color: var(--ink-2); font-size: 13px; text-align: right; }
+  .toggle { font-size: 13px; color: var(--ink-2); user-select: none; white-space: nowrap; }
+  .toggle input { accent-color: var(--accent); margin-right: 4px; }
+  #chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  #chips button { border-radius: 999px; font-size: 12.5px; padding: 5px 12px; }
+  #chips button.active { color: #0e1116; font-weight: 600; }
+  #chips .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
+  #pbp { color: var(--ink-2); font-size: 13.5px; margin: 2px 0 10px; min-height: 18px; }
+  #pbp b { color: var(--ink); font-weight: 600; }
+  #pbp a { color: var(--accent); text-decoration: none; margin-left: 12px; }
+  #pbp a:hover { text-decoration: underline; }
+  #roster { display: flex; gap: 28px; font-size: 13px; margin-top: 10px; flex-wrap: wrap; }
+  #roster .team b { margin-right: 8px; font-size: 13px; }
+  #roster span.p { margin-right: 11px; white-space: nowrap; color: var(--ink-2); }
+  #roster span.p em { font-style: normal; color: var(--ink); font-weight: 600; }
 </style>
 </head>
 <body>
 <div class="bar">
+  <div id="wordmark">jdub <span>studio</span></div>
   <select id="game"></select>
-  <button id="prev" title="上一回合">‹</button>
+  <button id="prev" title="Previous possession">‹</button>
   <select id="event"></select>
-  <button id="next" title="下一回合">›</button>
-  <button id="play" title="空格">▶</button>
+  <button id="next" title="Next possession">›</button>
+</div>
+<div class="bar">
+  <button id="play" title="Space">▶</button>
   <select id="speed"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option></select>
   <div id="scrubwrap">
     <input type="range" id="scrub" min="0" max="0" value="0">
@@ -41,23 +62,29 @@
 </div>
 <div class="bar">
   <span id="layers"></span>
-  <label><input type="checkbox" id="follow" checked> 跟随镜头</label>
-  <span id="legend"></span>
+  <label class="toggle"><input type="checkbox" id="follow"> Follow cam</label>
 </div>
-<div class="bar"><span id="chips"></span></div>
+<div class="bar" id="chips"></div>
 <div id="pbp"></div>
 <canvas id="court" width="1400" height="760"></canvas>
 <div id="roster"></div>
 
 <script>
-// ---- camera: px = ox + ft * scale; lerped toward target each tick ----------
-const W = 1400, H = 760, PAD = 30;
+// ---- palette (validated: lightness band, chroma, CVD pairs, contrast) -------
+const TEAM_COLORS = { OKC: '#3D8FD1', TOR: '#E05A50', POR: '#E05A50', CHA: '#2FA8A0', SAC: '#2FA8A0', MEM: '#B8892E', LAL: '#B8892E' };
+const FALLBACK = ['#E05A50', '#3D8FD1'];
+const ACTION_COLORS = { screen: '#A78BFA', drive: '#38BDF8', cut: '#34D399', handoff: '#F472B6' };
+const COURT = { floor: '#1c222d', line: '#47536a', paint: 'rgba(255,255,255,0.025)', rim: '#ff8c42', board: '#9aa7b8' };
+const BALL = '#f5871a';
+
+// ---- camera: px = ox + ft * scale; lerped toward target each tick -----------
+const W = 1400, H = 760, PAD = 34;
 const FULL_SCALE = Math.min((W - 2 * PAD) / 94, (H - 2 * PAD) / 50);
-const FOLLOW_SCALE = 21;  // ~66x36 ft viewport, film-room half-court feel
+const FOLLOW_SCALE = 21;
 const S = {
   data: null, frame: 0, playing: false, speed: 1,
   cam: { scale: FULL_SCALE, ox: PAD + (W - 2 * PAD - 94 * FULL_SCALE) / 2, oy: PAD + (H - 2 * PAD - 50 * FULL_SCALE) / 2 },
-  homeColor: '#e4572e', visitorColor: '#3f88c5', ballColor: '#f6ae2d',
+  homeColor: FALLBACK[0], visitorColor: FALLBACK[1],
 };
 const ftx = x => S.cam.ox + x * S.cam.scale;
 const fty = y => S.cam.oy + y * S.cam.scale;
@@ -70,20 +97,20 @@ function camTarget() {
     return { scale, ox: PAD + (W - 2 * PAD - 94 * scale) / 2, oy: PAD + (H - 2 * PAD - 50 * scale) / 2 };
   }
   const scale = FOLLOW_SCALE;
-  const vw = W / scale, vh = H / scale;  // viewport in ft
+  const vw = W / scale, vh = H / scale;
   const cx = Math.max(vw / 2 - 3, Math.min(97 - vw / 2, f.ball[0]));
   const cy = Math.max(vh / 2 - 3, Math.min(53 - vh / 2, f.ball[1]));
   return { scale, ox: W / 2 - cx * scale, oy: H / 2 - cy * scale };
 }
 
 function updateCam() {
-  const t = camTarget(), k = 0.08;  // smooth follow
+  const t = camTarget(), k = 0.08;
   S.cam.scale += (t.scale - S.cam.scale) * k;
   S.cam.ox += (t.ox - S.cam.ox) * k;
   S.cam.oy += (t.oy - S.cam.oy) * k;
 }
 
-// ---- layer system -----------------------------------------------------------
+// ---- layer system ------------------------------------------------------------
 // Each layer: {id, label, on, draw(ctx, S)}. Later milestones append here:
 // M3 coverage labels, M4 fact panel / commentary subtitles (DOM layers get an
 // update(S) hook instead of draw).
@@ -97,23 +124,35 @@ const LAYERS = [
 
 function drawCourt(ctx) {
   const sc = S.cam.scale;
-  ctx.strokeStyle = '#5a6472'; ctx.lineWidth = 1.5;
-  const rect = (x, y, w, h) => ctx.strokeRect(ftx(x), fty(y), w * sc, h * sc);
+  // floor
+  ctx.fillStyle = COURT.floor;
+  ctx.beginPath(); ctx.roundRect(ftx(0), fty(0), 94 * sc, 50 * sc, 6); ctx.fill();
+  ctx.strokeStyle = COURT.line; ctx.lineWidth = 1.5;
+  const rect = (x, y, w, h, fill) => {
+    if (fill) { ctx.fillStyle = COURT.paint; ctx.fillRect(ftx(x), fty(y), w * sc, h * sc); }
+    ctx.strokeRect(ftx(x), fty(y), w * sc, h * sc);
+  };
   const arc = (x, y, r, a0, a1) => { ctx.beginPath(); ctx.arc(ftx(x), fty(y), r * sc, a0, a1); ctx.stroke(); };
-  const line = (x0, y0, x1, y1) => { ctx.beginPath(); ctx.moveTo(ftx(x0), fty(y0)); ctx.lineTo(ftx(x1), fty(y1)); ctx.stroke(); };
-  rect(0, 0, 94, 50);
+  const line = (x0, y0, x1, y1, color) => {
+    if (color) ctx.strokeStyle = color;
+    ctx.beginPath(); ctx.moveTo(ftx(x0), fty(y0)); ctx.lineTo(ftx(x1), fty(y1)); ctx.stroke();
+    ctx.strokeStyle = COURT.line;
+  };
+  ctx.strokeRect(ftx(0), fty(0), 94 * sc, 50 * sc);
   line(47, 0, 47, 50);
   arc(47, 25, 6, 0, 2 * Math.PI);
   for (const [bx, dir] of [[5.25, 1], [88.75, -1]]) {
     const base = bx - dir * 5.25;
-    rect(Math.min(base, base + dir * 19), 17, 19, 16);
+    rect(Math.min(base, base + dir * 19), 17, 19, 16, true);
     arc(base + dir * 19, 25, 6, 0, 2 * Math.PI);
-    arc(bx, 25, 0.75, 0, 2 * Math.PI);
-    line(base + dir * 4, 22, base + dir * 4, 28);
+    line(base + dir * 4, 22, base + dir * 4, 28, COURT.board);
     line(base, 3, base + dir * 14, 3);
     line(base, 47, base + dir * 14, 47);
     const a = Math.asin(22 / 23.75);
     if (dir === 1) arc(bx, 25, 23.75, -a, a); else arc(bx, 25, 23.75, Math.PI - a, Math.PI + a);
+    ctx.strokeStyle = COURT.rim; ctx.lineWidth = 2;
+    arc(bx, 25, 0.75, 0, 2 * Math.PI);
+    ctx.strokeStyle = COURT.line; ctx.lineWidth = 1.5;
   }
 }
 
@@ -144,7 +183,7 @@ function computePos() {
   return map;
 }
 
-// Ball holder (client-side approximation for highlight only): nearest within 3 ft.
+// Ball holder (display approximation): nearest player within 3 ft of the ball.
 function holderPid(f) {
   if (!f.ball) return null;
   let best = null, bd = 3.0;
@@ -161,15 +200,23 @@ function drawPlayers(ctx, S) {
   const home = S.data.game.home_team_id;
   const holder = holderPid(f);
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.font = `bold ${Math.max(9, 0.72 * sc)}px system-ui`;
+  ctx.font = `700 ${Math.max(9, 0.62 * sc)}px system-ui`;
   for (const [pid, { x, y, team }] of S.pos.entries()) {
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3;
     ctx.beginPath();
-    ctx.arc(ftx(x), fty(y), 0.9 * sc, 0, 2 * Math.PI);
+    ctx.arc(ftx(x), fty(y), 1.0 * sc, 0, 2 * Math.PI);
     ctx.fillStyle = team === home ? S.homeColor : S.visitorColor;
     ctx.fill();
-    if (pid === holder) {  // who has the ball — first thing a reader needs
-      ctx.strokeStyle = S.ballColor; ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.arc(ftx(x), fty(y), 1.05 * sc, 0, 2 * Math.PI); ctx.stroke();
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(232,238,245,0.85)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(ftx(x), fty(y), 1.0 * sc, 0, 2 * Math.PI); ctx.stroke();
+    if (pid === holder) {
+      ctx.save();
+      ctx.strokeStyle = '#ffc24b';
+      ctx.lineWidth = 2.5; ctx.shadowColor = '#ffc24b'; ctx.shadowBlur = 10;
+      ctx.beginPath(); ctx.arc(ftx(x), fty(y), 1.28 * sc, 0, 2 * Math.PI); ctx.stroke();
+      ctx.restore();
     }
     ctx.fillStyle = '#ffffff';
     ctx.fillText(S.names[pid]?.jersey ?? '', ftx(x), fty(y) + 0.5);
@@ -180,7 +227,7 @@ function drawPlayers(ctx, S) {
 function drawMatchups(ctx, S) {
   const f = cur(); if (!f || !S.pos) return;
   const pairs = S.matchupsByIdx.get(f.idx); if (!pairs) return;
-  ctx.strokeStyle = '#8899aa'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+  ctx.strokeStyle = 'rgba(139,150,165,0.4)'; ctx.lineWidth = 1.25; ctx.setLineDash([5, 5]);
   for (const [o, d] of pairs) {
     const a = S.pos.get(o), b = S.pos.get(d);
     if (!a || !b) continue;
@@ -191,23 +238,41 @@ function drawMatchups(ctx, S) {
 
 function drawBall(ctx, S) {
   const i = Math.floor(S.frame), TRAIL = 25, sc = S.cam.scale;
-  ctx.strokeStyle = S.ballColor; ctx.lineWidth = 2; ctx.globalAlpha = 0.6;
-  ctx.beginPath();
-  let started = false;
-  for (let j = Math.max(0, i - TRAIL); j <= i; j++) {
-    const b = S.data.frames[j].ball; if (!b) continue;
-    started ? ctx.lineTo(ftx(b[0]), fty(b[1])) : ctx.moveTo(ftx(b[0]), fty(b[1]));
-    started = true;
+  // fading, tapering trail
+  let prev = null;
+  for (let j = Math.max(1, i - TRAIL); j <= i; j++) {
+    const a = S.data.frames[j - 1]?.ball, b = S.data.frames[j].ball;
+    if (!a || !b) { prev = null; continue; }
+    const t = (j - (i - TRAIL)) / TRAIL;
+    ctx.strokeStyle = BALL; ctx.globalAlpha = 0.65 * t; ctx.lineWidth = 1 + 2.2 * t;
+    ctx.beginPath(); ctx.moveTo(ftx(a[0]), fty(a[1])); ctx.lineTo(ftx(b[0]), fty(b[1])); ctx.stroke();
   }
-  ctx.stroke(); ctx.globalAlpha = 1;
+  ctx.globalAlpha = 1;
   const b = cur()?.ball; if (!b) return;
-  ctx.beginPath();
-  ctx.arc(ftx(b[0]), fty(b[1]), (0.5 + b[2] / 20) * sc, 0, 2 * Math.PI);
-  ctx.fillStyle = S.ballColor; ctx.fill();
+  const r = (0.55 + b[2] / 22) * sc;
+  const g = ctx.createRadialGradient(ftx(b[0]) - r / 3, fty(b[1]) - r / 3, r / 6, ftx(b[0]), fty(b[1]), r);
+  g.addColorStop(0, '#ffb067'); g.addColorStop(1, BALL);
+  ctx.save();
+  ctx.shadowColor = 'rgba(245,135,26,0.55)'; ctx.shadowBlur = 12;
+  ctx.beginPath(); ctx.arc(ftx(b[0]), fty(b[1]), r, 0, 2 * Math.PI);
+  ctx.fillStyle = g; ctx.fill();
+  ctx.restore();
 }
 
-const ACTION_COLORS = { screen: '#9b5de5', drive: '#00bbf9', cut: '#00f5a0', handoff: '#f15bb5' };
 const whoShort = pid => S.names[pid] ? `${S.names[pid].name} #${S.names[pid].jersey}` : pid;
+
+function labelPill(ctx, x, y, text, color) {
+  ctx.font = '600 12.5px system-ui';
+  const w = ctx.measureText(text).width + 26, h = 22, r = 11;
+  ctx.beginPath(); ctx.roundRect(x, y - h / 2, w, h, r);
+  ctx.fillStyle = 'rgba(15,18,24,0.92)'; ctx.fill();
+  ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.stroke();
+  ctx.beginPath(); ctx.arc(x + 12, y, 3.5, 0, 2 * Math.PI);
+  ctx.fillStyle = color; ctx.fill();
+  ctx.fillStyle = '#e7ecf3'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, x + 20, y + 0.5);
+  ctx.textBaseline = 'alphabetic';
+}
 
 function drawActions(ctx, S) {
   const f = cur(); if (!f || !S.pos) return;
@@ -221,13 +286,10 @@ function drawActions(ctx, S) {
     ctx.globalAlpha = 0.25 + 0.75 * ease;
     ctx.strokeStyle = color; ctx.lineWidth = 2.5;
     ctx.beginPath();
-    ctx.arc(ftx(p.x), fty(p.y), (1.5 + 1.6 * (1 - ease)) * sc, 0, 2 * Math.PI);
+    ctx.arc(ftx(p.x), fty(p.y), (1.55 + 1.6 * (1 - ease)) * sc, 0, 2 * Math.PI);
     ctx.stroke();
-    ctx.fillStyle = color; ctx.font = `bold ${Math.max(12, 0.8 * sc)}px system-ui`;
-    ctx.fillText(
-      `${act.type} · ${whoShort(act.p1)} (${act.confidence})`,
-      ftx(p.x) + 1.8 * sc, fty(p.y) - 1.6 * sc - 6 * (1 - ease)
-    );
+    labelPill(ctx, ftx(p.x) + 1.9 * sc, fty(p.y) - 1.9 * sc - 6 * (1 - ease),
+      `${act.type} · ${whoShort(act.p1)}`, color);
     ctx.globalAlpha = 1;
   }
 }
@@ -269,10 +331,10 @@ function updateRoster(f) {
     .filter(p => (p[0] === home) === teamHome)
     .map(p => S.names[p[1]] ? { j: +S.names[p[1]].jersey, n: S.names[p[1]].name } : { j: p[1], n: '?' })
     .sort((a, b) => a.j - b.j)
-    .map(({ j, n }) => `<span class="p">#${j} ${n}</span>`).join('');
+    .map(({ j, n }) => `<span class="p"><em>#${j}</em> ${n}</span>`).join('');
   $('roster').innerHTML =
-    `<b style="color:${S.homeColor}">${S.data.game.home_abbr}</b>${side(true)}<br>` +
-    `<b style="color:${S.visitorColor}">${S.data.game.visitor_abbr}</b>${side(false)}`;
+    `<div class="team"><b style="color:${S.homeColor}">${S.data.game.home_abbr}</b>${side(true)}</div>` +
+    `<div class="team"><b style="color:${S.visitorColor}">${S.data.game.visitor_abbr}</b>${side(false)}</div>`;
 }
 
 function tick(t) {
@@ -319,6 +381,7 @@ document.addEventListener('keydown', e => {
 
 for (const l of LAYERS) {
   const label = document.createElement('label');
+  label.className = 'toggle';
   const cb = document.createElement('input');
   cb.type = 'checkbox'; cb.checked = l.on;
   cb.onchange = () => { l.on = cb.checked; };
@@ -330,6 +393,10 @@ async function loadEvent() {
   const g = $('game').value, e = $('event').value;
   if (!g || !e) return;
   S.data = await (await fetch(`/api/games/${g}/events/${e}`)).json();
+  const gm = S.data.game;
+  S.homeColor = TEAM_COLORS[gm.home_abbr] ?? FALLBACK[0];
+  S.visitorColor = TEAM_COLORS[gm.visitor_abbr] ?? FALLBACK[1];
+  if (S.homeColor === S.visitorColor) S.visitorColor = S.homeColor === FALLBACK[1] ? FALLBACK[0] : FALLBACK[1];
   S.matchupsByIdx = new Map();
   for (const r of S.data.matchups) {
     if (!S.matchupsByIdx.has(r.moment_idx)) S.matchupsByIdx.set(r.moment_idx, []);
@@ -339,8 +406,8 @@ async function loadEvent() {
   S.names = S.data.players;
   S.frame = 0; setPlaying(false); S.rosterKey = '';
   const meta = S.eventsMeta?.get(e);
-  $('pbp').innerHTML = (meta?.desc ? `PBP: ${meta.desc}` : 'PBP: (无记录——非记录事件回合)') +
-    `<a href="https://www.nba.com/stats/events?GameID=${g}&GameEventID=${e}&Season=2015-16&flag=1" target="_blank">🎬 官方剪辑(能否打开取决于你的网络)</a>`;
+  $('pbp').innerHTML = (meta?.desc ? `<b>PBP</b> — ${meta.desc}` : '<b>PBP</b> — no logged entry for this segment') +
+    `<a href="https://www.nba.com/stats/events?GameID=${g}&GameEventID=${e}&Season=2015-16&flag=1" target="_blank">Watch clip ↗</a>`;
   const total = S.data.frames.length;
   for (const act of S.actions) {
     act._startPos = Math.max(0, S.data.frames.findIndex(f => f.idx >= act.start_idx));
@@ -353,9 +420,9 @@ async function loadEvent() {
     const color = ACTION_COLORS[act.type] || '#444';
     const seek = () => { setPlaying(false); S.frame = act._startPos; };
     const b = document.createElement('button');
-    b.textContent = `${act.type} ${whoShort(act.p1)}${act.p2 != null ? ' → ' + whoShort(act.p2) : ''} (${act.confidence})`;
+    b.innerHTML = `<span class="dot" style="background:${color}"></span>` +
+      `${act.type} ${whoShort(act.p1)}${act.p2 != null ? ' → ' + whoShort(act.p2) : ''} · ${act.confidence}`;
     b.style.borderColor = color;
-    b.style.marginRight = '6px';
     b.onclick = seek;
     chips.append(b);
     S.chipEls.push({ el: b, act, color, wasActive: false });
@@ -368,10 +435,6 @@ async function loadEvent() {
     ticks.append(tk);
   }
   $('scrub').max = total - 1;
-  const gm = S.data.game;
-  $('legend').innerHTML =
-    `<span class="legend" style="background:${S.homeColor}"></span>${gm.home_abbr} ` +
-    `<span class="legend" style="background:${S.visitorColor}"></span>${gm.visitor_abbr}`;
 }
 
 const MIN_FRAMES = 75;  // hide <3s fragment events (FTs, subs, replay reviews)
