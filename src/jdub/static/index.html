@@ -1,0 +1,206 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>jdub studio</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #15181d; color: #ddd; margin: 0; padding: 16px; }
+  #bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  select, button { background: #262b33; color: #ddd; border: 1px solid #444; border-radius: 4px; padding: 4px 10px; font-size: 14px; }
+  button { cursor: pointer; }
+  #scrub { flex: 1; min-width: 200px; }
+  canvas { background: #1e232b; border-radius: 6px; display: block; }
+  #clock { font-variant-numeric: tabular-nums; min-width: 130px; }
+  #layers label { margin-right: 10px; font-size: 13px; user-select: none; }
+  .legend { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; }
+</style>
+</head>
+<body>
+<div id="bar">
+  <select id="game"></select>
+  <select id="event"></select>
+  <button id="play">▶</button>
+  <input type="range" id="scrub" min="0" max="0" value="0">
+  <span id="clock"></span>
+</div>
+<div id="bar"><span id="layers"></span><span id="legend"></span></div>
+<canvas id="court" width="1000" height="560"></canvas>
+
+<script>
+// ---- geometry: court is 94x50 ft, origin top-left corner, SCALE px per ft ----
+const SCALE = 10, PAD = 30;
+const ftx = x => PAD + x * SCALE, fty = y => PAD + y * SCALE;
+
+// ---- state shared by all layers ----
+const S = {
+  data: null,      // {game, frames}
+  frame: 0,        // current frame index (float during playback)
+  playing: false,
+  homeColor: '#e4572e', visitorColor: '#3f88c5', ballColor: '#f6ae2d',
+};
+const cur = () => S.data ? S.data.frames[Math.floor(S.frame)] : null;
+
+// ---- layer system ------------------------------------------------------
+// Each layer: {id, label, on, draw(ctx, S)}. Later milestones append here:
+// M2 action markers + matchup lines, M3 coverage labels, M4 fact panel /
+// commentary subtitles (DOM layers: give them an update(S) hook instead of draw).
+const LAYERS = [
+  { id: 'court', label: 'Court', on: true, draw: drawCourt },
+  { id: 'players', label: 'Players', on: true, draw: drawPlayers },
+  { id: 'ball', label: 'Ball + trail', on: true, draw: drawBall },
+];
+
+function drawCourt(ctx) {
+  ctx.strokeStyle = '#5a6472'; ctx.lineWidth = 1.5;
+  const rect = (x, y, w, h) => ctx.strokeRect(ftx(x), fty(y), w * SCALE, h * SCALE);
+  const arc = (x, y, r, a0, a1) => { ctx.beginPath(); ctx.arc(ftx(x), fty(y), r * SCALE, a0, a1); ctx.stroke(); };
+  const line = (x0, y0, x1, y1) => { ctx.beginPath(); ctx.moveTo(ftx(x0), fty(y0)); ctx.lineTo(ftx(x1), fty(y1)); ctx.stroke(); };
+  rect(0, 0, 94, 50);                       // boundary
+  line(47, 0, 47, 50);                      // half court
+  arc(47, 25, 6, 0, 2 * Math.PI);           // center circle
+  for (const [bx, dir] of [[5.25, 1], [88.75, -1]]) {   // per basket
+    const base = bx - dir * 5.25;                        // baseline x
+    rect(Math.min(base, base + dir * 19), 17, 19, 16);   // paint
+    arc(base + dir * 19, 25, 6, 0, 2 * Math.PI);         // FT circle
+    arc(bx, 25, 0.75, 0, 2 * Math.PI);                   // rim
+    line(base + dir * 4, 22, base + dir * 4, 28);        // backboard
+    line(base, 3, base + dir * 14, 3);                   // corner 3
+    line(base, 47, base + dir * 14, 47);
+    const a = Math.asin(22 / 23.75);                     // 3pt arc
+    if (dir === 1) arc(bx, 25, 23.75, -a, a); else arc(bx, 25, 23.75, Math.PI - a, Math.PI + a);
+  }
+}
+
+// Nudge near-coincident points apart (display only). Mirrors viz.py spread_overlaps.
+function spreadOverlaps(pts, minSep = 2.0) {
+  for (let k = 0; k < 8; k++) {
+    let moved = false;
+    for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) {
+      let dx = pts[j][0] - pts[i][0], dy = pts[j][1] - pts[i][1], d = Math.hypot(dx, dy);
+      if (d >= minSep) continue;
+      if (d < 1e-6) { dx = 1; dy = 0; d = 1; }
+      const push = (minSep - d) / 2, ux = dx / d, uy = dy / d;
+      pts[i][0] -= ux * push; pts[i][1] -= uy * push;
+      pts[j][0] += ux * push; pts[j][1] += uy * push;
+      moved = true;
+    }
+    if (!moved) break;
+  }
+  return pts;
+}
+
+function drawPlayers(ctx, S) {
+  const f = cur(); if (!f) return;
+  const home = S.data.game.home_team_id;
+  const spread = spreadOverlaps(f.players.map(p => [p[2], p[3]]));
+  f.players.forEach(([teamId], i) => {
+    ctx.beginPath();
+    ctx.arc(ftx(spread[i][0]), fty(spread[i][1]), 0.9 * SCALE, 0, 2 * Math.PI);
+    ctx.fillStyle = teamId === home ? S.homeColor : S.visitorColor;
+    ctx.fill();
+  });
+}
+
+function drawBall(ctx, S) {
+  const i = Math.floor(S.frame), TRAIL = 25;
+  ctx.strokeStyle = S.ballColor; ctx.lineWidth = 2; ctx.globalAlpha = 0.6;
+  ctx.beginPath();
+  let started = false;
+  for (let j = Math.max(0, i - TRAIL); j <= i; j++) {
+    const b = S.data.frames[j].ball; if (!b) continue;
+    started ? ctx.lineTo(ftx(b[0]), fty(b[1])) : ctx.moveTo(ftx(b[0]), fty(b[1]));
+    started = true;
+  }
+  ctx.stroke(); ctx.globalAlpha = 1;
+  const b = cur().ball; if (!b) return;
+  ctx.beginPath();
+  ctx.arc(ftx(b[0]), fty(b[1]), (0.5 + b[2] / 20) * SCALE, 0, 2 * Math.PI);  // radius hints height
+  ctx.fillStyle = S.ballColor; ctx.fill();
+}
+
+// ---- render loop -------------------------------------------------------
+const canvas = document.getElementById('court'), ctx = canvas.getContext('2d');
+const FPS = 25;
+let lastT = null;
+
+function render() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  for (const l of LAYERS) if (l.on && (S.data || l.id === 'court')) l.draw(ctx, S);
+  const f = cur();
+  if (f) {
+    const mm = String(Math.floor(f.game_clock / 60)).padStart(2, '0');
+    const ss = (f.game_clock % 60).toFixed(1).padStart(4, '0');
+    document.getElementById('clock').textContent =
+      `Q${f.quarter} ${mm}:${ss}` + (f.shot_clock != null ? ` · sc ${f.shot_clock.toFixed(1)}` : '');
+    document.getElementById('scrub').value = Math.floor(S.frame);
+  }
+}
+
+function tick(t) {
+  if (S.playing && S.data) {
+    if (lastT != null) {
+      S.frame += (t - lastT) / 1000 * FPS;
+      if (S.frame >= S.data.frames.length) { S.frame = S.data.frames.length - 1; setPlaying(false); }
+    }
+    lastT = t;
+  } else lastT = t;
+  render();
+  requestAnimationFrame(tick);
+}
+
+// ---- controls ----------------------------------------------------------
+const $ = id => document.getElementById(id);
+
+function setPlaying(p) { S.playing = p; $('play').textContent = p ? '⏸' : '▶'; }
+
+$('play').onclick = () => {
+  if (!S.data) return;
+  if (!S.playing && S.frame >= S.data.frames.length - 1) S.frame = 0;
+  setPlaying(!S.playing);
+};
+$('scrub').oninput = e => { setPlaying(false); S.frame = +e.target.value; };
+
+for (const l of LAYERS) {
+  const label = document.createElement('label');
+  const cb = document.createElement('input');
+  cb.type = 'checkbox'; cb.checked = l.on;
+  cb.onchange = () => { l.on = cb.checked; };
+  label.append(cb, ' ' + l.label);
+  $('layers').append(label);
+}
+
+async function loadEvent() {
+  const g = $('game').value, e = $('event').value;
+  if (!g || !e) return;
+  S.data = await (await fetch(`/api/games/${g}/events/${e}`)).json();
+  S.frame = 0; setPlaying(false);
+  $('scrub').max = S.data.frames.length - 1;
+  const gm = S.data.game;
+  $('legend').innerHTML =
+    `<span class="legend" style="background:${S.homeColor}"></span>${gm.home_abbr} ` +
+    `<span class="legend" style="background:${S.visitorColor}"></span>${gm.visitor_abbr}`;
+}
+
+async function loadEvents() {
+  const g = $('game').value;
+  const evs = await (await fetch(`/api/games/${g}/events`)).json();
+  $('event').innerHTML = evs.map(e => {
+    const c = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
+    return `<option value="${e.event_id}">#${e.event_id} Q${e.quarter} ${c(e.start_clock)}→${c(e.end_clock)} (${e.n_moments}f)</option>`;
+  }).join('');
+  await loadEvent();
+}
+
+async function init() {
+  const games = await (await fetch('/api/games')).json();
+  $('game').innerHTML = games.map(g =>
+    `<option value="${g.game_id}">${g.date} ${g.visitor_abbr} @ ${g.home_abbr}</option>`).join('');
+  $('game').onchange = loadEvents;
+  $('event').onchange = loadEvent;
+  if (games.length) await loadEvents();
+  requestAnimationFrame(tick);
+}
+init();
+</script>
+</body>
+</html>
