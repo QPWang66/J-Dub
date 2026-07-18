@@ -29,6 +29,7 @@ datasets/        training data (git-ignored; pulled via Roboflow API)
 ```bash
 cd cv
 uv sync
+./get-weights.sh   # pulls court_kp.pt + WASB ball weights from the GitHub release
 uv run python -m jdub_cv.pipeline clips/dal-lac1.mp4 calib/dal-lac1.json \
     --out ../data/parquet --game-id cv-dal-lac1 --overlay qc.mp4
 cd .. && uv run jdub detect cv-dal-lac1
