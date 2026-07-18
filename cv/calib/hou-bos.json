@@ -1,0 +1,5 @@
+{
+  "kp_model": "weights/court_kp.pt",
+  "flip": false,
+  "video": "hou-bos.mp4 (NBA broadcast)"
+}

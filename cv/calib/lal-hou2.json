@@ -1,0 +1,5 @@
+{
+  "kp_model": "weights/court_kp.pt",
+  "flip": true,
+  "video": "lal-hou2.mp4 (NBA broadcast)"
+}

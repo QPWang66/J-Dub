@@ -63,5 +63,7 @@
         255
       ]
     ]
-  ]
+  ],
+  "kp_model": "weights/court_kp.pt",
+  "flip": false
 }

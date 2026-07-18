@@ -33,7 +33,7 @@ def test_merge_tracks_sews_fragments_not_concurrent():
         3: {i: (80.0, 40.0) for i in range(0, 120)},
     }
     colors = {1: red, 2: red, 3: [np.array([240.0, 128, 128])]}
-    merged, _ = merge_tracks(obs, colors, fps)
+    merged, _, _ = merge_tracks(obs, colors, fps)
     assert set(merged) == {1, 3}
     assert max(merged[1]) == 119  # fragment 2 folded into 1
 

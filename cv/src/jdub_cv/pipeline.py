@@ -65,7 +65,12 @@ def merge_tracks(
     obs: dict[int, dict[int, tuple[float, float]]],
     colors: dict[int, list[np.ndarray]],
     fps: float,
-) -> tuple[dict[int, dict[int, tuple[float, float]]], dict[int, list[np.ndarray]]]:
+    feats: dict[int, list[np.ndarray]] | None = None,
+) -> tuple[
+    dict[int, dict[int, tuple[float, float]]],
+    dict[int, list[np.ndarray]],
+    dict[int, list[np.ndarray]] | None,
+]:
     """Sew tracker-ID fragments of the same player back together.
 
     A fragment may continue an earlier one when it starts after the other ends
@@ -75,6 +80,7 @@ def merge_tracks(
     """
     med = {t: (np.median(np.array(cs), axis=0) if cs else None) for t, cs in colors.items()}
     roots: list[int] = []  # merged track heads, keyed by their first fragment id
+    fts: dict[int, list[np.ndarray]] = {}
     frames: dict[int, dict[int, tuple[float, float]]] = {}
     cols: dict[int, list[np.ndarray]] = {}
     tail: dict[int, tuple[int, float, float]] = {}  # root -> (end_frame, x, y)
@@ -101,15 +107,19 @@ def merge_tracks(
             roots.append(t)
             frames[t] = dict(fs)
             cols[t] = list(colors.get(t, []))
+            if feats is not None:
+                fts[t] = list(feats.get(t, []))
         else:
             frames[best].update(fs)
             cols[best].extend(colors.get(t, []))
+            if feats is not None:
+                fts[best].extend(feats.get(t, []))
             if med.get(best) is None:
                 med[best] = med.get(t)
             t = best
         e = max(frames[t])
         tail[t] = (e, *frames[t][e])
-    return frames, cols
+    return frames, cols, (fts if feats is not None else None)
 
 
 def _team_colors(
@@ -139,6 +149,7 @@ def run(
     imgsz: int = 1280,
     tracker: str = "botsort.yaml",
     ball_weights: Path | None = None,
+    teams: str = "color",
 ) -> dict[str, int]:
     from ultralytics import YOLO
 
@@ -156,6 +167,12 @@ def run(
         from jdub_cv.ball import WasbBallDetector
 
         wasb = WasbBallDetector(ball_weights)
+    embedder = None
+    if teams == "siglip":
+        from jdub_cv.teams import SiglipEmbedder
+
+        embedder = SiglipEmbedder()
+    feats: dict[int, list[np.ndarray]] = defaultdict(list)
     obs: dict[int, dict[int, tuple[float, float]]] = defaultdict(dict)  # tid -> frame -> ft
     colors: dict[int, list[np.ndarray]] = defaultdict(list)
     ball: dict[int, tuple[float, float]] = {}
@@ -201,6 +218,10 @@ def run(
                         c = torso_color(frame, box)
                         if c is not None:
                             colors[int(tid)].append(c)
+                        if embedder is not None:
+                            e = embedder.embed(frame, box)
+                            if e is not None:
+                                feats[int(tid)].append(e)
         # ball candidates from both detectors; the motion-continuity gate picks
         pts: list[list[float]] = []
         scores: list[float] = []
@@ -247,14 +268,15 @@ def run(
 
     n_frames = len(hs)
     n_fragments = len(obs)
-    obs, colors = merge_tracks(obs, colors, fps)
+    obs, colors, feats = merge_tracks(obs, colors, fps, feats if embedder else None)
     # the 10 real players: on-court, long-lived, non-referee, max 5 per team
     alive = {
         t: fs
         for t, fs in obs.items()
         if len(fs) >= MIN_TRACK_S * fps and len(fs) / (max(fs) - min(fs) + 1) >= IN_COURT_FRAC
     }
-    team = assign_teams({t: colors[t] for t in alive})
+    clusterable = feats if embedder else colors
+    team = assign_teams({t: clusterable[t] for t in alive})
     picked: dict[int, int] = {}  # tid -> team
     for side in (1, 2):
         tids = sorted((t for t in alive if team.get(t) == side), key=lambda t: -len(alive[t]))[:5]
@@ -456,6 +478,7 @@ def main() -> None:
             args.imgsz,
             args.tracker,
             args.ball_weights,
+            args.teams,
         )
     )
 
