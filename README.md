@@ -64,8 +64,9 @@ src/jdub/
   robustness.py  Gate 0 for the CV front-end: detector F1 vs injected positional noise
   cli.py         Typer entry points: download / parse / detect / pbp / robustness / studio / commentary / viz
 cv/              stage 1, separate uv project (torch stays out of the main package):
-                 video -> YOLO11+ByteTrack -> homography -> team k-means -> moments Parquet;
-                 output feeds `jdub detect`/`jdub studio` unchanged (see cv/README.md)
+                 video -> YOLO11+BoT-SORT + WASB ball -> court-keypoint homography ->
+                 jersey-color team split -> moments Parquet; output feeds
+                 `jdub detect`/`jdub studio` unchanged (see cv/README.md)
 docs/
   detection-research.md   literature basis + citations for detection thresholds (deep-research output)
   cv-plan.md              CV roadmap: broadcast video -> moments schema (GSR-style modular pipeline)

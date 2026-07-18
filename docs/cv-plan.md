@@ -46,13 +46,17 @@
 
 ## 里程碑
 
-- **C0 · Gate 0(已建)**:`jdub robustness <game>` —— 给 SportVU 轨迹注入
-  高斯噪声,量出各检测器的 F1-vs-σ 衰减曲线。曲线死掉的 σ 就是 CV 模型
-  必须打赢的定位精度门槛。跑在任何训练之前。
-- **C1 · baseline 跑通**:TrackLab/sn-gamestate + 现成权重(SportsMOT 预训练
-  检测器 + WASB + KaliCalib)跑一段 NBA 广播剪辑 → minimap。不训练,
-  先量 baseline 离 Gate 0 门槛差多远、可见性覆盖率多少。
-- **C2 · 微调**:检测器 + court keypoint 在篮球数据上微调,量化提升。
+- **C0 · Gate 0(✅ 已建)**:`jdub robustness <game>` —— 给 SportVU 轨迹注入
+  高斯噪声,量出各检测器的 F1-vs-σ 衰减曲线。结论:速度类检测器在 σ=0.25ft
+  就崩,视频轨迹必须先平滑;B 线模型对视频输入近乎必需。
+- **C1 · baseline 跑通(✅ 已建,cv/)**:YOLO11+BoT-SORT + WASB 球 + 经典
+  禁区贴合标定,端到端出 moments;lal-hou 片段首次从视频检出战术事件
+  (265 对位 + 1 drive)。经典标定在摇镜头下不稳定 → 直接推进 C2。
+- **C2 · 球场关键点模型(🔄 训练中)**:Roboflow reloc2 数据集(1.4k 广播帧,
+  18 地标)微调 YOLO11s-pose,每帧独立回归绝对 H。`KeypointCalibrator`
+  已接入,以 `cv/src/jdub_cv/stability.py` 全片段指标验收。
+  后续(按 QP 指定的栈,暂 hold):SigLIP 分队 → SAM2 跟踪 → RF-DETR
+  检测微调 → SmolVLM2/ResNet 球衣号码 → 真实球员身份。
 - **C3 · 对齐验收**:SportVU×广播对齐做验收集;迭代到过 Gate 0 门槛 →
   接 moments schema → studio 回放肉眼质检(评估工具=demo,铁律不变)。
 

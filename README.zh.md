@@ -56,8 +56,9 @@ src/jdub/
   robustness.py  CV 前端的 Gate 0:检测器 F1 随注入定位噪声的衰减曲线
   cli.py         Typer 入口:download / parse / detect / pbp / robustness / studio / commentary / viz
 cv/              第一段,独立 uv 项目(torch 不进主包):
-                 视频 -> YOLO11+ByteTrack -> 单应性 -> 队色聚类 -> moments Parquet;
-                 输出直接喂 `jdub detect`/`jdub studio`(见 cv/README.md)
+                 视频 -> YOLO11+BoT-SORT + WASB 球检测 -> 球场关键点单应性 ->
+                 球衣色分队 -> moments Parquet;输出直接喂
+                 `jdub detect`/`jdub studio`(见 cv/README.md)
 docs/
   detection-research.md   检测阈值的文献依据与 citation(deep-research 产物)
   cv-plan.md              CV 路线图:广播视频 -> moments schema(GSR 式模块化管线)

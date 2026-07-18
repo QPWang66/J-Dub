@@ -145,13 +145,107 @@ def snap(mask: np.ndarray, pts_img: np.ndarray, steps=INIT_STEPS) -> tuple[np.nd
     return pts, best
 
 
+# the 18 court landmarks of the reloc2 keypoint dataset, in our court ft
+# (verified against labeled frames: idx7 = halfcourt x far sideline, idx16/17 =
+# right FT-line x far/near paint edge; dataset "top" = far sideline = y=50)
+COURT_KP_FT = np.float32(
+    [
+        [0, 50],
+        [0, 47],
+        [0, 33],
+        [0, 17],
+        [0, 3],
+        [0, 0],  # left baseline, far -> near
+        [47, 0],
+        [47, 50],  # halfcourt x near / far sideline
+        [19, 33],
+        [19, 17],  # left FT line x far / near paint edge
+        [94, 0],
+        [94, 3],
+        [94, 17],
+        [94, 33],
+        [94, 47],
+        [94, 50],  # right baseline, near -> far
+        [75, 33],
+        [75, 17],  # right FT line x far / near paint edge
+    ]
+)
+KP_CONF = 0.5
+KP_MIN_PTS = 5
+KP_BLEND = 0.6  # temporal smoothing on the derived paint corners
+
+
+class KeypointCalibrator:
+    """Absolute per-frame H from a trained court-keypoint model (YOLO-pose).
+
+    No flow, no paint color, no drift: every frame is calibrated independently
+    from detected landmarks, lightly smoothed. `iou` reports the fraction of
+    confident keypoints (for stability.py)."""
+
+    def __init__(self, weights: str | Path, flip: bool = False, static: bool = False):
+        from ultralytics import YOLO
+
+        self.model = YOLO(str(weights))
+        self.flip = flip
+        self.static = static
+        self.H: np.ndarray = np.eye(3)
+        self.iou = 0.0
+        self.prev_pts: np.ndarray | None = None
+
+    def _paint_pts(self) -> np.ndarray:
+        return cv2.perspectiveTransform(
+            PAINT_CORNERS.reshape(-1, 1, 2), np.linalg.inv(self.H)
+        ).reshape(-1, 2)
+
+    def update(self, frame: np.ndarray) -> np.ndarray:
+        r = self.model.predict(frame, imgsz=640, verbose=False)[0]
+        k = r.keypoints
+        self.iou = 0.0
+        if k is None or k.conf is None or not len(k.xy):
+            return self.H
+        best = int(r.boxes.conf.argmax()) if r.boxes is not None and len(r.boxes) else 0
+        xy = k.xy[best].cpu().numpy()
+        cf = k.conf[best].cpu().numpy()
+        ok = (cf >= KP_CONF) & (xy[:, 0] > 1) & (xy[:, 1] > 1)
+        self.iou = round(float(ok.sum()) / len(COURT_KP_FT), 3)
+        if ok.sum() < KP_MIN_PTS:
+            return self.H
+        h, _ = cv2.findHomography(xy[ok], COURT_KP_FT[ok], cv2.RANSAC, 4.0)
+        if h is None or not np.isfinite(h).all():
+            return self.H
+        pts = cv2.perspectiveTransform(PAINT_CORNERS.reshape(-1, 1, 2), np.linalg.inv(h))
+        pts = pts.reshape(-1, 2)
+        if not (np.isfinite(pts).all() and _valid_quad(pts)):
+            return self.H
+        if self.prev_pts is not None:
+            pts = KP_BLEND * pts + (1 - KP_BLEND) * self.prev_pts
+            h = cv2.getPerspectiveTransform(np.float32(pts), PAINT_CORNERS)
+        self.prev_pts = pts
+        self.H = h
+        return self.H
+
+
+def make_calibrator(calib_path: str | Path):
+    """Factory: keypoint-model calibrator when the calib file names one, else
+    the classical paint-snap calibrator."""
+    spec = json.loads(Path(calib_path).read_text())
+    if spec.get("kp_model"):
+        weights = Path(calib_path).resolve().parent.parent / spec["kp_model"]
+        return KeypointCalibrator(
+            weights, flip=bool(spec.get("flip", False)), static=bool(spec.get("static", False))
+        )
+    return Calibrator(calib_path)
+
+
 class Calibrator:
     def __init__(self, calib_path: str | Path):
         spec = json.loads(Path(calib_path).read_text())
         self.img_pts = np.float32(spec["image"])
         self.court_pts = np.float32(spec["court"])
         self.static = bool(spec.get("static", False))  # fixed camera: H never changes
-        self.flip = bool(spec.get("flip", False))  # mirror frames: left-attack clip -> right-attack convention
+        self.flip = bool(
+            spec.get("flip", False)
+        )  # mirror frames: left-attack clip -> right-attack convention
         self.paint_hsv = spec.get("paint_hsv")  # [[lo,hi], ...] HSV ranges of the painted key
         h, _ = cv2.findHomography(self.img_pts, self.court_pts)
         if h is None:

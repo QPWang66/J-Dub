@@ -15,7 +15,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from jdub_cv.calib import Calibrator, court_lines
+from jdub_cv.calib import court_lines, make_calibrator
 
 
 def _overlay(frame: np.ndarray, h: np.ndarray) -> np.ndarray:
@@ -30,7 +30,7 @@ def _overlay(frame: np.ndarray, h: np.ndarray) -> np.ndarray:
 
 def run(video: Path, calib: Path, dump_worst: Path | None = None) -> dict:
     cap = cv2.VideoCapture(str(video))
-    c = Calibrator(calib)
+    c = make_calibrator(calib)
     ious: list[float] = []
     vels: list[float] = []
     frames_kept: list[tuple[int, float, np.ndarray, np.ndarray]] = []

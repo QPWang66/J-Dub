@@ -21,7 +21,7 @@ import cv2
 import numpy as np
 import polars as pl
 
-from jdub_cv.calib import COURT_LENGTH, COURT_WIDTH, Calibrator, court_lines, to_court
+from jdub_cv.calib import COURT_LENGTH, COURT_WIDTH, court_lines, make_calibrator, to_court
 from jdub_cv.teams import assign_teams, torso_color
 
 OUT_HZ = 25.0  # SportVU rate; events.py assumes it
@@ -146,7 +146,7 @@ def run(
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
     cap.release()
 
-    calibrator = Calibrator(calib)
+    calibrator = make_calibrator(calib)
     model = YOLO(model_name)
     if ball_weights is None:
         default = Path(__file__).resolve().parents[2] / "weights" / "wasb_basketball_best.pth.tar"
