@@ -458,6 +458,7 @@ def main() -> None:
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--imgsz", type=int, default=1280)
     ap.add_argument("--tracker", default="botsort.yaml", help="botsort.yaml | bytetrack.yaml")
+    ap.add_argument("--teams", default="color", choices=["color", "siglip"])
     ap.add_argument(
         "--ball-weights",
         type=Path,
