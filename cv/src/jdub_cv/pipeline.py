@@ -112,6 +112,22 @@ def merge_tracks(
     return frames, cols
 
 
+def _team_colors(
+    picked: dict[int, int], colors: dict[int, list[np.ndarray]]
+) -> dict[int, tuple[int, int, int]]:
+    """Each side's dominant jersey color (median Lab of its tracks -> BGR)."""
+    out: dict[int, tuple[int, int, int]] = {}
+    for side in (1, 2):
+        labs = [c for t, s in picked.items() if s == side for c in colors.get(t, [])]
+        if labs:
+            lab = np.median(np.array(labs), axis=0).astype(np.uint8).reshape(1, 1, 3)
+            b, g, r = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)[0, 0]
+            out[side] = (int(b), int(g), int(r))
+        else:
+            out[side] = (200, 200, 200)
+    return out
+
+
 def run(
     video: Path,
     calib: Path,
@@ -145,20 +161,25 @@ def run(
     ball: dict[int, tuple[float, float]] = {}
     hs: list[np.ndarray] = []
 
-    for fi, r in enumerate(
-        model.track(
-            source=str(video),
-            stream=True,
+    cap = cv2.VideoCapture(str(video))
+    fi = -1
+    while True:
+        fi += 1
+        ok, frame = cap.read()
+        if not ok or (limit is not None and fi >= limit):
+            break
+        if calibrator.flip:
+            frame = cv2.flip(frame, 1)
+        r = model.track(
+            frame,
+            persist=True,
             classes=[0, 32],
             conf=BALL_CONF,
             imgsz=imgsz,
             tracker=tracker,
             verbose=False,
-        )
-    ):
-        if limit is not None and fi >= limit:
-            break
-        h = calibrator.update(r.orig_img).copy()
+        )[0]
+        h = calibrator.update(frame).copy()
         hs.append(h)
         has_boxes = r.boxes is not None and len(r.boxes)
         if has_boxes:
@@ -177,19 +198,19 @@ def run(
                         continue
                     obs[int(tid)][fi] = (float(cx), float(cy))
                     if fi % COLOR_EVERY == 0:
-                        c = torso_color(r.orig_img, box)
+                        c = torso_color(frame, box)
                         if c is not None:
                             colors[int(tid)].append(c)
         # ball candidates from both detectors; the motion-continuity gate picks
         pts: list[list[float]] = []
         scores: list[float] = []
         if wasb is not None:
-            det = wasb.detect(r.orig_img)
+            det = wasb.detect(frame)
             if det:
                 pts.append([det[0], det[1]])
                 scores.append(det[2])
         if has_boxes:
-            balls = (cls == 32) & ((xyxy[:, 2] - xyxy[:, 0]) <= BALL_MAX_FRAC * r.orig_img.shape[1])
+            balls = (cls == 32) & ((xyxy[:, 2] - xyxy[:, 0]) <= BALL_MAX_FRAC * frame.shape[1])
             if balls.any():
                 pts.extend(
                     np.stack(
@@ -240,6 +261,7 @@ def run(
         picked.update({t: side for t in tids})
     tracks = {t: _interp(alive[t], int(PLAYER_GAP_S * fps)) for t in picked}
     ball = _interp(ball, int(BALL_GAP_S * fps))
+    team_bgr = _team_colors(picked, colors)
 
     # resample to 25 Hz and emit moments long-format
     rows: list[dict] = []
@@ -329,7 +351,7 @@ def run(
         df.write_parquet(d / f"{game_id}.parquet")
 
     if overlay is not None:
-        _write_overlay(video, overlay, hs, tracks, picked, ball, fps)
+        _write_overlay(video, overlay, hs, tracks, picked, ball, fps, team_bgr, calibrator.flip)
 
     per_frame = moments.group_by("moment_idx").agg(
         ((pl.col("entity") == "player").sum().alias("np")),
@@ -357,16 +379,21 @@ def _write_overlay(
     picked: dict[int, int],
     ball: dict[int, tuple[float, float]],
     fps: float,
+    team_color: dict[int, tuple[int, int, int]] | None = None,
+    flip: bool = False,
 ) -> None:
     """QC video: court lines + kept players (team-colored) + ball, all re-projected."""
     cap = cv2.VideoCapture(str(video))
     w, h = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     vw = cv2.VideoWriter(str(out), cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
-    team_color = {1: (60, 130, 255), 2: (255, 160, 40)}  # BGR
+    if team_color is None:
+        team_color = {1: (60, 130, 255), 2: (255, 160, 40)}  # BGR fallback
     for fi in range(len(hs)):
         ok, frame = cap.read()
         if not ok:
             break
+        if flip:
+            frame = cv2.flip(frame, 1)
         hinv = np.linalg.inv(hs[fi])
         for line in court_lines():
             px = cv2.perspectiveTransform(np.float32(line).reshape(-1, 1, 2), hinv).reshape(-1, 2)
@@ -377,7 +404,8 @@ def _write_overlay(
                 ((px, py),) = cv2.perspectiveTransform(
                     np.float32([tracks[t][fi]]).reshape(-1, 1, 2), hinv
                 ).reshape(-1, 2)
-                cv2.circle(frame, (int(px), int(py)), 7, team_color[side], 2)
+                cv2.circle(frame, (int(px), int(py)), 8, team_color[side], -1)
+                cv2.circle(frame, (int(px), int(py)), 8, (255, 255, 255), 1)
                 cv2.putText(
                     frame,
                     str(t),

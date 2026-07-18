@@ -10,16 +10,25 @@ import numpy as np
 
 
 def torso_color(frame: np.ndarray, xyxy: np.ndarray) -> np.ndarray | None:
-    """Median Lab color of the central upper-body crop of one detection."""
+    """Dominant Lab color of the chest crop of one detection.
+
+    Tight crop (chest only) + 2-means, keeping the bigger cluster — separates
+    the jersey from skin/background instead of blending them into mud."""
     x1, y1, x2, y2 = (int(v) for v in xyxy)
     w, h = x2 - x1, y2 - y1
-    if w < 8 or h < 16:
+    if w < 10 or h < 24:
         return None
-    crop = frame[y1 + h // 6 : y1 + h // 2, x1 + w // 4 : x2 - w // 4]
+    crop = frame[y1 + int(0.22 * h) : y1 + int(0.45 * h), x1 + int(0.3 * w) : x2 - int(0.3 * w)]
     if crop.size == 0:
         return None
-    lab = cv2.cvtColor(crop, cv2.COLOR_BGR2LAB).reshape(-1, 3)
-    return np.median(lab, axis=0)
+    lab = cv2.cvtColor(crop, cv2.COLOR_BGR2LAB).reshape(-1, 3).astype(np.float32)
+    if len(lab) < 8:
+        return lab.mean(axis=0)
+    if len(lab) > 256:
+        lab = lab[:: len(lab) // 256]
+    labels = _kmeans(lab, k=2)
+    big = np.bincount(labels).argmax()
+    return lab[labels == big].mean(axis=0)
 
 
 def _kmeans(x: np.ndarray, k: int = 3, iters: int = 30) -> np.ndarray:

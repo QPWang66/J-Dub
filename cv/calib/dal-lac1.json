@@ -2,6 +2,66 @@
   "video": "dal-lac1.mp4 frame 60 (broadcast, panning camera)",
   "convention": "court ft: x=94 right baseline, y=0 near (bottom) sideline",
   "note": "best-effort manual anchors; residual ~20-50px on left half. C2 court-keypoint model replaces this.",
-  "image": [[635, 467], [1120, 470], [1055, 252], [435, 482]],
-  "court": [[75, 25], [94, 17], [94, 50], [65.25, 25]]
+  "image": [
+    [
+      635,
+      467
+    ],
+    [
+      1120,
+      470
+    ],
+    [
+      1055,
+      252
+    ],
+    [
+      435,
+      482
+    ]
+  ],
+  "court": [
+    [
+      75,
+      25
+    ],
+    [
+      94,
+      17
+    ],
+    [
+      94,
+      50
+    ],
+    [
+      65.25,
+      25
+    ]
+  ],
+  "paint_hsv": [
+    [
+      [
+        0,
+        120,
+        70
+      ],
+      [
+        10,
+        255,
+        255
+      ]
+    ],
+    [
+      [
+        170,
+        120,
+        70
+      ],
+      [
+        180,
+        255,
+        255
+      ]
+    ]
+  ]
 }
