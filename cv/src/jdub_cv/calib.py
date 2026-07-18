@@ -29,6 +29,10 @@ PAINT_CORNERS = np.float32([[75, 17], [94, 17], [94, 33], [75, 33]])  # H is par
 SNAP_SCALE = 0.5  # masks evaluated at half resolution
 MIN_IOU = 0.25  # below this the paint isn't really in view: keep flow-only H
 RESNAP_IOU = 0.45  # tracking snap under this triggers a wide re-search
+TRUST_IOU = 0.55  # snap fit good enough to accept big corrections
+MAX_CORRECTION = 10.0  # half-res px: max per-frame snap correction at mediocre fit
+BLEND = 0.7  # snap weight when blending with the flow prediction (temporal smoothing)
+MAX_AREA_STEP = 1.25  # max per-frame quad area ratio (real zooms change ~1-2%/frame)
 INIT_STEPS = (32.0, 16.0, 8.0, 4.0, 2.0, 1.0)  # frame-0 snap: wide basin
 TRACK_STEPS = (16.0, 8.0, 4.0, 2.0, 1.0)  # per-frame snap after flow propagation
 # ponytail: needs a paint_hsv color per court; courts whose paint matches the
@@ -63,10 +67,20 @@ def paint_mask(frame_bgr: np.ndarray, paint_hsv: list) -> np.ndarray:
     return cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((9, 9), np.uint8))
 
 
+def _valid_quad(pts: np.ndarray) -> bool:
+    """Convex, non-self-intersecting quad (a crossed 'bowtie' can fake high IoU)."""
+    v = np.roll(pts, -1, axis=0) - pts
+    w = np.roll(v, -1, axis=0)
+    cross = v[:, 0] * w[:, 1] - v[:, 1] * w[:, 0]
+    return bool((cross > 0).all() or (cross < 0).all())
+
+
 def paint_iou(mask: np.ndarray, pts_img: np.ndarray) -> float:
     """IoU between the projected paint model and the paint-color mask.
 
     `pts_img` and `mask` share the same (SNAP_SCALE) pixel coordinates."""
+    if not _valid_quad(np.asarray(pts_img)):
+        return 0.0
     try:
         h = cv2.getPerspectiveTransform(np.float32(pts_img), PAINT_CORNERS)
         poly = cv2.perspectiveTransform(_MODEL_POLY.reshape(-1, 1, 2), np.linalg.inv(h))
@@ -146,6 +160,7 @@ class Calibrator:
         self.prev_gray: np.ndarray | None = None
         self.feats: np.ndarray | None = None
         self.age = 0
+        self.iou = 0.0
 
     def _mask(self, gray: np.ndarray) -> np.ndarray:
         """Court-floor region in image space: visible half-court through H^-1."""
@@ -178,18 +193,29 @@ class Calibrator:
         ).reshape(-1, 2)
 
     def _snap_to_paint(self, frame: np.ndarray, steps) -> None:
+        self.iou = 0.0
         if not self.paint_hsv:
             return  # no paint color known: flow-only
         mask = paint_mask(frame, self.paint_hsv)
-        pts0 = self._paint_pts() * SNAP_SCALE
+        pts0 = self._paint_pts() * SNAP_SCALE  # flow-propagated prediction
         mask = _components_near(mask, pts0)
         if not mask.any():
             return
         pts, iou = snap(mask, pts0, steps)
         if iou < RESNAP_IOU and steps is not INIT_STEPS:  # lost the paint: search wider
             pts, iou = snap(mask, pts, INIT_STEPS)
-        if iou >= MIN_IOU:
-            self.H = cv2.getPerspectiveTransform(np.float32(pts) / SNAP_SCALE, PAINT_CORNERS)
+        self.iou = iou
+        if iou < MIN_IOU:
+            return  # paint not really in view: keep flow-only H
+        correction = float(np.abs(pts - pts0).max())
+        if steps is not INIT_STEPS:
+            if iou < TRUST_IOU and correction > MAX_CORRECTION:
+                return  # mediocre fit demanding a big jump: distrust, keep flow
+            ratio = cv2.contourArea(np.float32(pts)) / max(cv2.contourArea(np.float32(pts0)), 1.0)
+            if not (1 / MAX_AREA_STEP <= ratio <= MAX_AREA_STEP):
+                return  # quad inflating/deflating faster than any real zoom: motion blur
+            pts = BLEND * pts + (1 - BLEND) * pts0  # temporal smoothing
+        self.H = cv2.getPerspectiveTransform(np.float32(pts) / SNAP_SCALE, PAINT_CORNERS)
 
     def update(self, frame: np.ndarray) -> np.ndarray:
         """Feed the next frame; returns the current image->court homography."""
