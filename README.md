@@ -80,9 +80,15 @@ The public SportVU dump only covers the 2015-16 regular season (2015-10-27
 through 2016-01-23, 632 games); playoff tracking data has no public source.
 Local samples: 5 OKC games + 2 GSW games.
 
-`data/` as a whole is git-ignored, with one exception: the **Christmas game
-(2015-12-25 CLE @ GSW)** ships with the repo as sample data — the full Parquet
-set (after cloning, `uv sync && uv run jdub studio` plays it with no network)
-plus the raw `.7z` archive (to reproduce the full pipeline, extract with
-`py7zr` and run `jdub parse`; the raw JSON is 108MB, over GitHub's single-file
-limit, so it is not committed).
+`data/` as a whole is git-ignored, with two exceptions that ship as sample data:
+
+- the **Christmas game (2015-12-25 CLE @ GSW)** — full SportVU Parquet set,
+  plus the raw `.7z` archive (extract with `py7zr` and run `jdub parse` to
+  reproduce the pipeline; the raw JSON is 108MB, over GitHub's limit).
+- three **CV-derived games** (`cv-okc-nyk`, `cv-lal-hou`, `cv-dal-lac1`) —
+  trajectories extracted from NBA broadcast video by `cv/` (court-keypoint
+  homography + WASB ball + YOLO tracking), in the same moments schema.
+
+After cloning, `uv sync && uv run jdub studio` plays all of them with no
+network and no model weights — pick a game in the selector; `cv-*` entries are
+the video-derived ones.

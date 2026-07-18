@@ -71,7 +71,13 @@ tests/           合成轨迹单测 + 截断的真实数据夹具
 公开 SportVU 数据只覆盖 2015-16 常规赛(2015-10-27 至 2016-01-23,632 场);
 季后赛轨迹不存在公开渠道。本地样本为 5 场 OKC + 2 场 GSW。
 
-`data/` 整体不进 git,唯一例外是**骑勇圣诞大战(2015-12-25 CLE @ GSW)**作为
-sample data 随仓库分发:全套 Parquet(克隆后 `uv sync && uv run jdub studio`
-即可直接播放,无需联网)+ 原始 `.7z` 归档(想复现完整管线时
-`py7zr` 解压后 `jdub parse` 即可,原始 JSON 108MB 超 GitHub 单文件上限故不入库)。
+`data/` 整体不进 git,两类 sample data 例外随仓库分发:
+
+- **骑勇圣诞大战(2015-12-25 CLE @ GSW)**:全套 SportVU Parquet + 原始 `.7z`
+  归档(`py7zr` 解压后 `jdub parse` 可复现管线;原始 JSON 108MB 超限不入库)。
+- **三场 CV 提取的比赛**(`cv-okc-nyk` / `cv-lal-hou` / `cv-dal-lac1`):
+  由 `cv/` 从 NBA 广播视频提取的轨迹(球场关键点单应性 + WASB 球检测 +
+  YOLO 跟踪),同一 moments schema。
+
+克隆后 `uv sync && uv run jdub studio` 全部可直接播放——无需联网、无需模型
+权重;选择器里 `cv-*` 开头的就是视频提取的场次。

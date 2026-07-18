@@ -4,13 +4,15 @@ CLAUDE.md
 .venv/
 __pycache__/
 *.pyc
-# data stays out of git — except the CLE@GSW Christmas game as sample data
+# data stays out of git — except sample data: the CLE@GSW Christmas game
+# and the CV-derived games (video -> trajectory results, for studio playback)
 data/**
 !data/raw/
 !data/raw/12.25.2015.CLE.at.GSW.7z
 !data/parquet/
 !data/parquet/*/
 !data/parquet/*/0021500438.parquet
+!data/parquet/*/cv-*.parquet
 out/
 .pytest_cache/
 .ruff_cache/
