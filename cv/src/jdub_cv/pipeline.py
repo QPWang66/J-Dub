@@ -14,6 +14,7 @@ Parquet. The overlay video is the eyeball-QC tool (same iron rule as studio).
 from __future__ import annotations
 
 import argparse
+import re
 from collections import defaultdict
 from pathlib import Path
 
@@ -355,16 +356,21 @@ def run(
             for t, side in picked.items()
         ]
     )
+    # sync the matchup name from the clip filename (e.g. "okc-nyk.mp4" -> OKC @ NYK);
+    # which cluster is which team is unknown until jersey-number identity lands
+    parts = re.split(r"[-_]", video.stem)
+    visitor_abbr = parts[0].upper() if len(parts) >= 2 else "CVA"
+    home_abbr = re.sub(r"\d+$", "", parts[1]).upper() if len(parts) >= 2 else "CVB"
     games = pl.DataFrame(
         {
             "game_id": [game_id],
-            "date": [""],
+            "date": ["CV"],
             "home_team_id": [1],
-            "home_team": ["CV Team A"],
-            "home_abbr": ["CVA"],
+            "home_team": [home_abbr],
+            "home_abbr": [home_abbr],
             "visitor_team_id": [2],
-            "visitor_team": ["CV Team B"],
-            "visitor_abbr": ["CVB"],
+            "visitor_team": [visitor_abbr],
+            "visitor_abbr": [visitor_abbr],
         }
     )
     for name, df in (("moments", moments), ("games", games), ("players", players)):
