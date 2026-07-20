@@ -29,11 +29,11 @@ OUT_HZ = 25.0  # SportVU rate; events.py assumes it
 PERSON_CONF = 0.35
 BALL_CONF = 0.05  # ball candidates kept loose; picked by motion continuity below
 BALL_MAX_FRAC = 0.08  # ball box no wider than this fraction of the frame
-BALL_JUMP = 40.0  # ft/s: fastest believable ball travel when gating candidates
+BALL_LOCK_CONF = 0.5  # min candidate score to (re)acquire the ball when lost
+BALL_REACH = 0.02  # frame-widths: per-frame slack of the pixel continuity gate
+BALL_SPEED = 0.6  # frame-widths/s: fastest believable image-space ball travel
 MARGIN = 1.0  # ft of slack around the court when testing "on court"
-IN_COURT_FRAC = 0.6
 MIN_TRACK_S = 1.0
-PLAYER_GAP_S = 0.6  # interpolate track holes up to this long
 BALL_GAP_S = 1.5
 COLOR_EVERY = 5  # frames between torso-color samples
 MERGE_GAP_S = 2.5  # sew tracklet fragments across holes up to this long
@@ -123,6 +123,82 @@ def merge_tracks(
     return frames, cols, (fts if feats is not None else None)
 
 
+def _pick_ball(
+    cands: list[tuple[float, float, float]],
+    track: dict[int, tuple[float, float]],
+    fi: int,
+    fps: float,
+    width: int,
+) -> tuple[float, float] | None:
+    """Pick this frame's ball from (score, x_px, y_px) candidates.
+
+    Continuity is gated in image space — court space is corrupted by H jitter
+    and by the floor projection of an airborne ball. While locked, take the
+    nearest reachable candidate and never teleport; once the lock expires,
+    re-acquire only on a confident candidate (one bad confident pick
+    self-recovers after BALL_GAP_S).
+    """
+    if not cands:
+        return None
+    if track:
+        last = max(track)
+        dt = (fi - last) / fps
+        if dt <= BALL_GAP_S:
+            lx, ly = track[last]
+            reach = (BALL_REACH + BALL_SPEED * dt) * width
+            near = [c for c in cands if np.hypot(c[1] - lx, c[2] - ly) <= reach]
+            if near:
+                c = min(near, key=lambda c: np.hypot(c[1] - lx, c[2] - ly))
+                return c[1], c[2]
+            return None  # locked but nothing reachable: stay lost this frame
+    c = max(cands)
+    return (c[1], c[2]) if c[0] >= BALL_LOCK_CONF else None
+
+
+def pack_slots(
+    tracks: dict[int, dict[int, tuple[float, float]]], n_slots: int, fps: float
+) -> list[tuple[dict[int, tuple[float, float]], list[int]]]:
+    """Pack one team's tracklets into at most n_slots player timelines.
+
+    A team has exactly five players, so every fragment must continue one of
+    five timelines. Seeded longest-first: the most reliable tracks anchor the
+    five slots, shorter fragments attach to a slot's free end (before its
+    first frame or after its last) when reachable at MERGE_SPEED — no gap cap,
+    a player can be off-frame for seconds. Else open a new slot, else drop
+    (a sixth concurrent teammate is a ref/crowd leak). Earliest-start-first
+    instead lets short early stubs squat in slots and block the long tracks
+    (measured: okc-nyk 72%->95% complete frames when switched to longest).
+    Returns (frames, member tracklet ids) per slot.
+    """
+    slots: list[dict[int, tuple[float, float]]] = []
+    members: list[list[int]] = []
+    for t in sorted(tracks, key=lambda t: -len(tracks[t])):
+        fs = tracks[t]
+        s, e = min(fs), max(fs)
+        best, best_cost = None, None
+        for i, sl in enumerate(slots):
+            lo, hi = min(sl), max(sl)
+            if e < lo:  # fragment ends before the slot starts: prepend
+                gap, (sx, sy), (ex, ey) = (lo - e) / fps, fs[e], sl[lo]
+            elif s > hi:  # fragment starts after the slot ends: append
+                gap, (sx, sy), (ex, ey) = (s - hi) / fps, fs[s], sl[hi]
+            else:
+                continue  # spans overlap -> different player (interior gaps interp-filled)
+            dist = float(np.hypot(sx - ex, sy - ey))
+            if dist > 3.0 + MERGE_SPEED * gap:
+                continue
+            cost = dist + 5.0 * gap
+            if best_cost is None or cost < best_cost:
+                best, best_cost = i, cost
+        if best is not None:
+            slots[best].update(fs)
+            members[best].append(t)
+        elif len(slots) < n_slots:
+            slots.append(dict(fs))
+            members.append([t])
+    return list(zip(slots, members))
+
+
 def _team_colors(
     picked: dict[int, int], colors: dict[int, list[np.ndarray]]
 ) -> dict[int, tuple[int, int, int]]:
@@ -176,7 +252,7 @@ def run(
     feats: dict[int, list[np.ndarray]] = defaultdict(list)
     obs: dict[int, dict[int, tuple[float, float]]] = defaultdict(dict)  # tid -> frame -> ft
     colors: dict[int, list[np.ndarray]] = defaultdict(list)
-    ball: dict[int, tuple[float, float]] = {}
+    ball_px: dict[int, tuple[float, float]] = {}  # frame -> image px
     hs: list[np.ndarray] = []
 
     cap = cv2.VideoCapture(str(video))
@@ -223,68 +299,46 @@ def run(
                             e = embedder.embed(frame, box)
                             if e is not None:
                                 feats[int(tid)].append(e)
-        # ball candidates from both detectors; the motion-continuity gate picks
-        pts: list[list[float]] = []
-        scores: list[float] = []
+        # ball candidates from both detectors; picked by the pixel-space gate
+        cands: list[tuple[float, float, float]] = []  # (score, x_px, y_px)
         if wasb is not None:
             det = wasb.detect(frame)
             if det:
-                pts.append([det[0], det[1]])
-                scores.append(det[2])
+                cands.append((det[2], det[0], det[1]))
         if has_boxes:
             balls = (cls == 32) & ((xyxy[:, 2] - xyxy[:, 0]) <= BALL_MAX_FRAC * frame.shape[1])
-            if balls.any():
-                pts.extend(
-                    np.stack(
-                        [
-                            (xyxy[balls, 0] + xyxy[balls, 2]) / 2,
-                            (xyxy[balls, 1] + xyxy[balls, 3]) / 2,
-                        ],
-                        axis=1,
-                    ).tolist()
-                )
-                scores.extend(float(c) for c in conf[balls])
-        raw = np.array(pts) if pts else np.empty((0, 2))
-        if len(raw):
-            cands = [
-                (float(cf), float(cx), float(cy))
-                for cf, (cx, cy) in zip(scores, to_court(h, raw))
-                if _in_court(cx, cy)
-            ]
-            if cands:
-                if ball:
-                    last_fi = max(ball)
-                    lx, ly = ball[last_fi]
-                    dt = (fi - last_fi) / fps
-                    reach = 3.0 + BALL_JUMP * dt
-                    near = [c for c in cands if np.hypot(c[1] - lx, c[2] - ly) <= reach]
-                    pick = (
-                        min(near, key=lambda c: np.hypot(c[1] - lx, c[2] - ly))
-                        if near and dt <= BALL_GAP_S
-                        else max(cands, key=lambda c: c[0])
-                    )
-                else:
-                    pick = max(cands, key=lambda c: c[0])
-                ball[fi] = (pick[1], pick[2])
+            for cf, (x1, y1, x2, y2) in zip(conf[balls], xyxy[balls]):
+                cands.append((float(cf), float((x1 + x2) / 2), float((y1 + y2) / 2)))
+        if cands:
+            court = to_court(h, np.array([[c[1], c[2]] for c in cands]))
+            cands = [c for c, (cx, cy) in zip(cands, court) if _in_court(cx, cy)]
+        pick = _pick_ball(cands, ball_px, fi, fps, frame.shape[1])
+        if pick is not None:
+            ball_px[fi] = pick
 
     n_frames = len(hs)
     n_fragments = len(obs)
     obs, colors, feats = merge_tracks(obs, colors, fps, feats if embedder else None)
-    # the 10 real players: on-court, long-lived, non-referee, max 5 per team
-    alive = {
-        t: fs
-        for t, fs in obs.items()
-        if len(fs) >= MIN_TRACK_S * fps and len(fs) / (max(fs) - min(fs) + 1) >= IN_COURT_FRAC
-    }
+    # the 10 real players: every long-enough non-referee fragment belongs to
+    # one of each team's 5 slot timelines (whole-track top-5 selection leaves
+    # per-frame holes wherever the chosen track has one)
+    alive = {t: fs for t, fs in obs.items() if len(fs) >= MIN_TRACK_S * fps}
     clusterable = feats if embedder else colors
     team = assign_teams({t: clusterable[t] for t in alive})
-    picked: dict[int, int] = {}  # tid -> team
+    picked: dict[int, int] = {}  # slot id -> team
+    tracks: dict[int, dict[int, tuple[float, float]]] = {}
+    slot_colors: dict[int, list[np.ndarray]] = {}
     for side in (1, 2):
-        tids = sorted((t for t in alive if team.get(t) == side), key=lambda t: -len(alive[t]))[:5]
-        picked.update({t: side for t in tids})
-    tracks = {t: _interp(alive[t], int(PLAYER_GAP_S * fps)) for t in picked}
-    ball = _interp(ball, int(BALL_GAP_S * fps))
-    team_bgr = _team_colors(picked, colors)
+        packed = pack_slots({t: alive[t] for t in alive if team.get(t) == side}, 5, fps)
+        for i, (fs, tids) in enumerate(packed):
+            sid = side * 10 + i
+            picked[sid] = side
+            tracks[sid] = _interp(fs, int(MERGE_GAP_S * fps))
+            slot_colors[sid] = [c for t in tids for c in colors.get(t, [])]
+    # gap-fill the ball in pixel space, then project through each frame's own H
+    ball_px = _interp(ball_px, int(BALL_GAP_S * fps))
+    ball = {f: tuple(map(float, to_court(hs[f], np.array([p]))[0])) for f, p in ball_px.items()}
+    team_bgr = _team_colors(picked, slot_colors)
 
     # resample to 25 Hz and emit moments long-format
     rows: list[dict] = []

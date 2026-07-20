@@ -1,7 +1,7 @@
 import numpy as np
 
 from jdub_cv.calib import to_court
-from jdub_cv.pipeline import _interp, merge_tracks
+from jdub_cv.pipeline import _interp, _pick_ball, merge_tracks, pack_slots
 from jdub_cv.teams import assign_teams
 
 
@@ -36,6 +36,41 @@ def test_merge_tracks_sews_fragments_not_concurrent():
     merged, _, _ = merge_tracks(obs, colors, fps)
     assert set(merged) == {1, 3}
     assert max(merged[1]) == 119  # fragment 2 folded into 1
+
+
+def test_pick_ball_locked_never_teleports_and_reacquires_confident():
+    fps, w = 30.0, 1280
+    track = {10: (600.0, 400.0)}
+    near, far = (0.1, 620.0, 410.0), (0.99, 100.0, 100.0)
+    # locked: nearest reachable wins even against a higher-score far candidate
+    assert _pick_ball([far, near], track, 11, fps, w) == (620.0, 410.0)
+    # locked but nothing reachable: stay lost instead of teleporting
+    assert _pick_ball([far], track, 11, fps, w) is None
+    # lock expired (> BALL_GAP_S): weak candidate rejected, confident accepted
+    assert _pick_ball([(0.2, 100.0, 100.0)], track, 11 + int(2 * fps), fps, w) is None
+    assert _pick_ball([far], track, 11 + int(2 * fps), fps, w) == (100.0, 100.0)
+    # cold start: acquire only on confidence
+    assert _pick_ball([near], {}, 0, fps, w) is None
+    assert _pick_ball([far], {}, 0, fps, w) == (100.0, 100.0)
+
+
+def test_pack_slots_stitches_fragments_and_caps_slots():
+    fps = 30.0
+    tracks = {
+        # player A: two fragments, resumes nearby after a hole -> one slot
+        1: {i: (50.0, 25.0) for i in range(0, 60)},
+        2: {i: (52.0, 26.0) for i in range(90, 150)},
+        # player B: concurrent with A -> its own slot
+        3: {i: (80.0, 40.0) for i in range(0, 150)},
+        # far teleport after A's fragment: not reachable -> new slot
+        4: {i: (10.0, 5.0) for i in range(62, 80)},
+    }
+    packed = pack_slots(tracks, n_slots=2, fps=fps)
+    assert len(packed) == 2
+    by_members = {tuple(m): fs for fs, m in packed}
+    assert (1, 2) in by_members  # A's fragments stitched
+    assert max(by_members[(1, 2)]) == 149
+    assert (3,) in by_members  # B untouched; track 4 dropped (no slot left)
 
 
 def test_assign_teams_two_biggest_clusters():

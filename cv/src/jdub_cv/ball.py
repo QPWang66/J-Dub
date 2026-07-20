@@ -111,16 +111,17 @@ class WasbBallDetector:
             return None
         _, th = cv2.threshold(hm, SCORE_TH, 1, cv2.THRESH_BINARY)
         n, labels = cv2.connectedComponents(th.astype(np.uint8))
-        best, best_score = None, 0.0
+        best, best_mass, best_peak = None, 0.0, 0.0
         for m in range(1, n):
             ys, xs = np.where(labels == m)
             ws = hm[ys, xs]
-            score = float(ws.sum())
-            if score > best_score:
+            mass = float(ws.sum())
+            if mass > best_mass:
                 cx = float((xs * ws).sum() / ws.sum())
                 cy = float((ys * ws).sum() / ws.sum())
-                best, best_score = (cx, cy), score
+                best, best_mass, best_peak = (cx, cy), mass, float(ws.max())
         if best is None:
             return None
         h, w = frame_bgr.shape[:2]
-        return best[0] * w / INP_W, best[1] * h / INP_H, best_score
+        # score is the blob's peak sigmoid (0-1) so it compares against YOLO conf
+        return best[0] * w / INP_W, best[1] * h / INP_H, best_peak

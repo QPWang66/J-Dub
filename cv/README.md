@@ -78,6 +78,57 @@ rough `image`↔`court` anchors + `paint_hsv` for the classical fallback;
 optional `flip` (mirror left-attack clips into the right-attack convention)
 and `static` (fixed camera).
 
+## Handoff — CV owner
+
+Current state, where it hurts, and what to try. The two problems below are
+**independent** — court stability and player/team quality share no code.
+
+### Current state
+- All 5 clips in `calib/` run on the keypoint model (`court_kp.pt`). The
+  classical paint-snap `Calibrator` is fallback-only (untuned courts) — don't
+  invest there.
+- Teams default to `--teams color` (chest-crop k-means). `--teams siglip` is
+  wired but unproven.
+- Ball: WASB + YOLO hybrid, working. `z` is always 0.0 (single camera).
+
+### Problem 1 — court jitter (the H shakes frame-to-frame)
+Lives entirely in `KeypointCalibrator` (`calib.py`). Each frame gets an
+*independent* homography from detected landmarks → RANSAC → one-euro smooth.
+Per-frame keypoint noise is what shakes. Fixes, cheapest first:
+
+1. **Tune one-euro** — `EURO_MIN_CUTOFF` / `EURO_BETA` (`calib.py` ~line 178).
+   Lower both → smoother at rest, more pan lag. One-line, try first. Validate
+   with `stability.py` (corner velocity p95) on all of `clips/`.
+2. **Weighted homography fit** — replace the hard `KP_CONF` threshold
+   (`calib.py` `update()`) with confidence-weighted correspondences.
+3. **More court training data** — model is only reloc2 (1.4k imgs); jitter is
+   partly a weak model. Highest payoff, most work. See "Train the court model".
+4. **Hybrid** (flow between keyframes + keypoints as absolute anchor) — biggest
+   change; only if 1–3 fall short. Classical path is the smooth-but-drifts half.
+
+**Do NOT try hoop/backboard normalization.** The rim is 10 ft above the floor
+and the backboard is vertical — neither lies on the court plane, so a homography
+can't use them without a full PnP camera model. Wrong tool for this.
+
+### Problem 2 — player / team quality
+This is what the [Roboflow players guide](https://blog.roboflow.com/identify-basketball-players/)
+is about (detection + SigLIP team split + tracking). It does **not** touch the
+court/homography. Directions, in the same `sports`-stack spirit:
+- Prove out `--teams siglip` (already implemented) vs the color default.
+- RF-DETR fine-tune for players/ball/refs; SAM2 for occlusion-proof tracking;
+  jersey-number OCR for real identity. See "Planned upgrades" above.
+
+### Run + debug loop
+```bash
+uv run python -m jdub_cv.pipeline clips/<clip>.mp4 calib/<clip>.json \
+    --out ../data/parquet --game-id cv-<clip> --overlay qc.mp4
+uv run python -m jdub_cv.stability clips/<clip>.mp4 calib/<clip>.json
+```
+`qc.mp4` is the eyeball test (court + tracks re-projected). `stability.py` is
+the numeric gate — **every calibration change must pass it on all of `clips/`**
+(spot-checking 2 frames has shipped broken pans). Add a new clip = drop the
+video in `clips/`, make `calib/<name>.json` with `{"kp_model": "weights/court_kp.pt", "flip": <bool>}`.
+
 ## Known limits (deliberate, documented)
 
 - Ball `z` is emitted as 0.0 (single camera can't give height); the holder

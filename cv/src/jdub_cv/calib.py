@@ -172,7 +172,34 @@ COURT_KP_FT = np.float32(
 )
 KP_CONF = 0.5
 KP_MIN_PTS = 5
-KP_BLEND = 0.6  # temporal smoothing on the derived paint corners
+# one-euro smoothing of the derived paint corners: per-frame keypoint noise is
+# a few px (smooth hard at rest), pans move corners tens of px/frame (follow)
+EURO_FREQ = 30.0  # nominal broadcast fps; exact value only shifts the tuning
+EURO_MIN_CUTOFF = 1.0  # Hz
+EURO_BETA = 0.02  # swept on okc-nyk: accel p95 10.9 -> 7.3px vs fixed blend, +3px pan lag
+
+
+class _OneEuro:
+    """One-euro filter (Casiez et al. 2012), elementwise over an array."""
+
+    def __init__(self):
+        self.x: np.ndarray | None = None
+        self.dx: np.ndarray | None = None
+
+    @staticmethod
+    def _alpha(cutoff) -> np.ndarray:
+        tau = 1.0 / (2 * np.pi * cutoff)
+        return 1.0 / (1.0 + tau * EURO_FREQ)
+
+    def __call__(self, x: np.ndarray) -> np.ndarray:
+        if self.x is None:
+            self.x, self.dx = x, np.zeros_like(x)
+            return x
+        ad = self._alpha(1.0)
+        self.dx = ad * (x - self.x) * EURO_FREQ + (1 - ad) * self.dx
+        a = self._alpha(EURO_MIN_CUTOFF + EURO_BETA * np.abs(self.dx))
+        self.x = a * x + (1 - a) * self.x
+        return self.x
 
 
 class KeypointCalibrator:
@@ -190,7 +217,7 @@ class KeypointCalibrator:
         self.static = static
         self.H: np.ndarray = np.eye(3)
         self.iou = 0.0
-        self.prev_pts: np.ndarray | None = None
+        self.filt = _OneEuro()
 
     def _paint_pts(self) -> np.ndarray:
         return cv2.perspectiveTransform(
@@ -217,11 +244,8 @@ class KeypointCalibrator:
         pts = pts.reshape(-1, 2)
         if not (np.isfinite(pts).all() and _valid_quad(pts)):
             return self.H
-        if self.prev_pts is not None:
-            pts = KP_BLEND * pts + (1 - KP_BLEND) * self.prev_pts
-            h = cv2.getPerspectiveTransform(np.float32(pts), PAINT_CORNERS)
-        self.prev_pts = pts
-        self.H = h
+        pts = self.filt(pts)
+        self.H = cv2.getPerspectiveTransform(np.float32(pts), PAINT_CORNERS)
         return self.H
 
 
